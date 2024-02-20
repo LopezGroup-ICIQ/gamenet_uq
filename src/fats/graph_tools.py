@@ -12,8 +12,8 @@ from sklearn.preprocessing._encoders import OneHotEncoder
 from fats.constants import RGB_COLORS
 
 
-def convert_gpytorch_to_networkx(graph: Data, 
-                                 one_hot_encoder_elements: OneHotEncoder) -> Graph:
+def convert_pyg_to_nx(graph: Data, 
+                     one_hot_encoder_elements: OneHotEncoder) -> Graph:
     """
     Convert graph in pytorch_geometric to NetworkX type.    
     For each node in the graph, the label corresponding to the atomic species 
@@ -32,8 +32,8 @@ def convert_gpytorch_to_networkx(graph: Data,
         index = np.where(node_features_matrix[i,:] == 1)[0][0]
         atom_list.append(elements_list[index])
     edge_ts_list = {}
-    for i, edge in enumerate(graph.edge_attr):
-        if edge == 1:
+    for i in range(graph.num_edges):
+        if graph.edge_attr[i, 0] == 1:
             node_idxs = graph.edge_index[:, i]
             node1 = node_idxs[0].item()
             node2 = node_idxs[1].item()
@@ -43,7 +43,6 @@ def convert_gpytorch_to_networkx(graph: Data,
             node1 = node_idxs[0].item()
             node2 = node_idxs[1].item()
             edge_ts_list[(node1, node2)] = 0
-    print(edge_ts_list)
     g = torch_geometric.utils.to_networkx(graph, to_undirected=True)
     connections = list(g.edges)
     nx_graph = Graph()
@@ -97,13 +96,13 @@ def graph_plotter(graph: Data,
     Args:
         graph(torch_geometric.data.Data): graph object in pyG format.
     """
-    graph = convert_gpytorch_to_networkx(graph, one_hot_encoder_elements)
-    labels = get_node_attributes(graph, 'atom')
-    colors = list(get_node_attributes(graph, 'rgb').values()) 
+    nx_graph = convert_pyg_to_nx(graph, one_hot_encoder_elements)
+    labels = get_node_attributes(nx_graph, 'atom')
+    colors = list(get_node_attributes(nx_graph, 'rgb').values()) 
     # colour edges based on ts_edge attribute
-    edge_colors = ['black' if graph.edges[edge]['ts_edge'] == 0 else 'red' for edge in graph.edges]
+    edge_colors = ['black' if nx_graph.edges[edge]['ts_edge'] == 0 else 'red' for edge in nx_graph.edges]
     plt.figure(figsize=figsize, dpi=dpi) 
-    draw_networkx(graph, 
+    draw_networkx(nx_graph, 
                   labels=labels, 
                   node_size=node_size,
                   font_color=font_color, 
@@ -113,14 +112,22 @@ def graph_plotter(graph: Data,
                   alpha=alpha, 
                   arrowsize=arrowsize, 
                   width=width,
-                  pos=kamada_kawai_layout(graph))
+                  pos=kamada_kawai_layout(nx_graph), 
+                  linewidths=0.5)
     if node_index:
-        pos_dict = kamada_kawai_layout(graph)
-        for node in graph.nodes:
+        pos_dict = kamada_kawai_layout(nx_graph)
+        for node in nx_graph.nodes:
             x, y = pos_dict[node]
             plt.text(x+0.05, y+0.05, node, fontsize=7)        
     if text != None:
         plt.text(0.03, 0.9, text, fontsize=10)
+    # Add info about metal surface
+    adsorbate = graph.formula[4:]
+    facet = graph.facet
+    facet = facet[facet.find("(")+1:facet.find(")")]
+    metal = graph.metal + f'({facet})'
+    title = f'{adsorbate}/{metal}'
+    plt.title(title, fontsize=10)
     # Remove frame
     plt.axis('off')
     plt.draw()                    

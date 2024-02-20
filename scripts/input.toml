@@ -1,0 +1,50 @@
+# Configuration file for setting the hyperparameters for GNN training with train_GNN.py (TEMPLATE)
+
+[graph]  # Hyperparameters defining the graph dataset construction from the ASE database
+target = "scaled_energy"  # graph target (must be present as column in the database) (str)
+
+[graph.structure]   # Hyperparameters for graph structure generation from geometrical structures
+tolerance = 0.25            # Applied to all pairs of elements (float)
+scaling_factor = 1.25       # For atomic radii of metals (float)
+second_order = true    # Whether to comprise also the NNs of the metals direclt interacting with the adsorbate (true/false)
+
+[graph.features]   	# Graph nodes featurization
+adsorbate = false  	# Distinguish molecule and surface atom nodes (true/false)
+radical = false    	# Distinguish radical and non-radical nodes in the molecule (true/false)
+valence = false     	# Define scaled atom valence as 1 - x/x_max, where x is the atom valence and x_max is the maximum allowed valence
+gcn = true         	# Coordination number for surface atoms (true/false)
+magnetization = false	# Spin polarization feature (graph level)
+
+[train]
+splits = 5                  # Initial splits of the starting dataset for train/val/test sets creation (int)
+test_set = true             # Whether generate test set or just split among train/val (true/false)
+batch_size = 32         # Batch size (int)
+epochs = 200             # Total number of epochs (int)
+target_scaling = "std"      # Target scaling approach ("std" only available for now) ("std")
+loss_function = "mae"       # Loss function ("mae"/"mse"/"huber") 
+lr0 = 1e-3                  # Initial learning rate (float)
+patience = 5               # Patience of the lr-scheduler (int)
+factor = 0.7                # Decreasing factor of the lr-scheduler (float)
+minlr = 1e-7                # Minimum lr of the lr-scheduler (float)
+eps = 1e-9                  # Adam eps for ensuring numerical stability of the algorithm (float)
+weight_decay = 0            # Weight decay (see implementation in pytorch docs) (float)
+amsgrad = true              # Include amsgrad addition of adam optimizer (true/false)
+early_stopping = false      # Whether to include early stopping (true/false)
+es_patience = 10            # Early stopping patience (int)
+es_start_epoch = 100        # Epoch at which early stopper is activated (int)
+num_ensembles = 1           # Number of ensembles (int). Needed only when training a k-ensemble model
+
+
+[architecture]
+dim = 256                 # Layers' width (int)
+sigma = "ReLU"              # Activation function ("ReLU"/"tanh")
+bias = false                # Whether allowing bias in all layer formulas (true/false)
+num_linear = 0                # Number of dense layers at the beginning of the model (int)
+num_conv = 3                  # Number of convolutional layers (int)
+pool_heads = 1              # Number of multihead attention blocks in the pooling layer (int)             
+
+
+[data]
+ase_database_path = "/home/smorandi/fats/data/ts.db"  # path to ase database 
+graph_dataset_path = "/home/smorandi/fats/data/"              # path to graph dataset directory
+ase_database_key = ""            # key of the ase database

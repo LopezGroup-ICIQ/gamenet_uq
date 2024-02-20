@@ -1,0 +1,10 @@
+__pycache__/
+*.db
+*.svg
+*.png
+*.pt
+
+data/*True*
+data/*False*
+
+trainings/
