@@ -9,7 +9,7 @@ import numpy as np
 from torch_geometric.data import Data
 import torch
 
-from fats.graph import get_voronoi_neighbourlist
+from gamenet_uq.graph import get_voronoi_neighbourlist
 
 def get_magnetization(graph: Data):
     if graph.metal in ("Fe", "Co", "Ni"):

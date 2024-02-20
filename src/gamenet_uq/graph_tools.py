@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from sklearn.preprocessing._encoders import OneHotEncoder
 
-from fats.constants import RGB_COLORS
+from gamenet_uq.constants import RGB_COLORS
 
 
 def convert_pyg_to_nx(graph: Data, 

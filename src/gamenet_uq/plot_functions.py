@@ -9,7 +9,7 @@ from torch_geometric.loader import DataLoader
 from sklearn.metrics import r2_score
 import torch
 
-from fats.functions import split_percentage
+from gamenet_uq.functions import split_percentage
 
 def hist_num_atoms(n_list:list[int]):
     fig, ax = plt.subplots(figsize=(8/2.54, 4.94/2.54), dpi=500)

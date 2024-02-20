@@ -8,8 +8,8 @@ import torch
 from torch_geometric.data import Data
 import numpy as np
 
-from fats.functions import get_graph_conversion_params, get_mean_std_from_model
-from fats.graph_tools import extract_adsorbate
+from gamenet_uq.functions import get_graph_conversion_params, get_mean_std_from_model
+from gamenet_uq.graph_tools import extract_adsorbate
 
 class EarlyStopper:
     """

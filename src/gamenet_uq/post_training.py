@@ -14,8 +14,8 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.nn import summary
 from sklearn.metrics import r2_score
 
-from fats.graph_tools import graph_plotter
-from fats.plot_functions import *
+from gamenet_uq.graph_tools import graph_plotter
+from gamenet_uq.plot_functions import *
 
 
 def create_model_report(model_name: str,

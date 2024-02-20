@@ -18,7 +18,7 @@ from ase import Atoms
 from networkx import Graph, set_node_attributes, set_edge_attributes, is_connected, connected_components
 from torch_geometric.data import InMemoryDataset
  
-from fats.constants import CORDERO
+from gamenet_uq.constants import CORDERO
 
 
 def split_percentage(splits: int, test: bool=True) -> tuple[int]:

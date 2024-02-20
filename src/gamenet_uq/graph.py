@@ -13,7 +13,7 @@ from scipy.spatial import Voronoi
 from ase import Atoms
 from networkx import Graph, set_node_attributes, connected_components, get_node_attributes
  
-from fats.constants import CORDERO
+from gamenet_uq.constants import CORDERO
 
 def get_voronoi_neighbourlist(atoms: Atoms, 
                               tol: float, 

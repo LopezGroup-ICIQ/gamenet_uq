@@ -15,9 +15,9 @@ import numpy as np
 from ase.atoms import Atoms
 from ase.io import read
 
-from fats.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter, ase_adsorption_filter
-from fats.graph import atoms_to_pyg
-from fats.node_featurizers import get_gcn, get_radical_atoms, get_atom_valence, adsorbate_node_featurizer, get_magnetization
+from gamenet_uq.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter, ase_adsorption_filter
+from gamenet_uq.graph import atoms_to_pyg
+from gamenet_uq.node_featurizers import get_gcn, get_radical_atoms, get_atom_valence, adsorbate_node_featurizer, get_magnetization
 
 METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
 ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
