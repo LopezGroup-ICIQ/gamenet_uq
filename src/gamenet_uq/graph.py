@@ -63,7 +63,6 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             if distance <= threshold:
                 pairs.append(pair)
  
-        gasc = all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms)))
         c1 = any(
             atoms[pair[0]].symbol in adsorbate_elems
             and atoms[pair[1]].symbol not in adsorbate_elems
@@ -74,7 +73,7 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             and atoms[pair[1]].symbol in adsorbate_elems
             for pair in pairs
         )
-        if (c1 or c2) or gasc:
+        if (c1 or c2) or all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms))):
             break
         else:
             increment += 0.2
@@ -150,10 +149,10 @@ def atoms_to_nx(atoms: Atoms,
                (pair[1] in surface_neighbours_idxs and pair[0] not in adsorbate_idxs)
         })
     
-    ensemble_idxs = adsorbate_idxs.union(surface_neighbours_idxs)
+    # ensemble_idxs = adsorbate_idxs.union(surface_neighbours_idxs)
     # 3) Construct graph with the atoms in the ensemble
     graph = Graph()
-    graph.add_nodes_from(list(ensemble_idxs))
+    graph.add_nodes_from(list(adsorbate_idxs.union(surface_neighbours_idxs)))
     set_node_attributes(graph, {i: atoms[i].symbol for i in graph.nodes()}, "elem")
     ensemble_neighbour_list = [pair for pair in neighbour_list if pair[0] in graph.nodes() and pair[1] in graph.nodes()]
     graph.add_edges_from(ensemble_neighbour_list, ts_edge=0)

@@ -1,12 +1,17 @@
 """ Module containing the class for the generation of the PyG dataset from the ASE database."""
 
-import os, sys
+import os
 from typing import Union, Optional
-import multiprocessing as mp
+from copy import deepcopy
+import resource
+resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
+
 
 from torch_geometric.data import InMemoryDataset, Data
 from torch import zeros, where, cat, load, save, tensor
 import torch
+import torch.multiprocessing as mp
+# mp.set_forkserver_preload(["torch", "torch_geometric"])
 from ase.db import connect
 from ase.db.core import AtomsRow
 from sklearn.preprocessing import OneHotEncoder
@@ -21,6 +26,7 @@ from gamenet_uq.node_featurizers import get_gcn, get_radical_atoms, get_atom_val
 
 METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
 ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
+OHE_ELEMENTS = OneHotEncoder().fit(np.array(ADSORBATE_ELEMS + METALS).reshape(-1, 1))
 
 
 def pyg_dataset_id(ase_database_path: str, 
@@ -52,7 +58,7 @@ def pyg_dataset_id(ase_database_path: str,
     mag = str(features_params["magnetization"])
     target = graph_params["target"]
     # id convention: database name + target + all features. float values converted to strings and "." is removed
-    dataset_id = "{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_LAST".format(id, target, tolerance, scaling_factor, second_order_nn, adsorbate, radical, valence, gcn, mag)
+    dataset_id = "{}_{}_{}_{}_{}_{}_{}_{}_{}_{}".format(id, target, tolerance, scaling_factor, second_order_nn, adsorbate, radical, valence, gcn, mag)
     return dataset_id
 
 
@@ -112,21 +118,12 @@ class AdsorptionGraphDataset(InMemoryDataset):
         self.target = graph_params["target"]
         self.output_path = os.path.join(os.path.abspath(graph_dataset_dir), self.dataset_id)
         self.ncores = ncores
-        # Construct OHEs for elements and surface orientation (based on the selected data defined by database_key)
-        # db = connect(self.ase_database_path)
-        # self.elements_list = []
-        # for row in db.select(self.db_key):
-        #     chemical_symbols = set(row.toatoms().get_chemical_symbols())    
-        #     for element in chemical_symbols:
-        #         if element not in self.elements_list:
-        #             self.elements_list.append(element)
-        # self.adsorbate_elems: list[str] = [elem for elem in self.elements_list if elem in ["C", "H", "O", "N", "S"]]
         self.adsorbate_elems = ADSORBATE_ELEMS
         self.elements_list = ADSORBATE_ELEMS + METALS
         self.ohe_elements = OneHotEncoder().fit(np.array(self.elements_list).reshape(-1, 1)) 
-        # Node features
         self.node_feature_list = list(self.ohe_elements.categories_[0])
         self.node_dim = len(self.node_feature_list)
+        # self.duplicates = []
         for key, value in graph_params["features"].items():
             if value:
                 self.node_dim += 1
@@ -149,14 +146,32 @@ class AdsorptionGraphDataset(InMemoryDataset):
         db = connect(self.ase_database_path)    
         args = []
         for row in db.select(self.db_key):
-            args.append((row, self.graph_structure_params, self.ohe_elements, self.node_feats_params, self.target))
-        with mp.Pool(self.ncores) as pool:  
-            data_list = pool.starmap(row_to_data, args)
+            args.append(row)
+
+        def process_batch(batch_args):
+            with mp.Pool(mp.cpu_count()) as pool:
+                return pool.map(self.row_to_data, batch_args)
+
+        batch_size = 2000  # Adjust based on your memory constraints
+        data_list = []
+        for i in range(0, len(args), batch_size):
+            print("Processing batch {} to {} ...".format(i, i + batch_size))
+            batch_args = args[i:i + batch_size]
+            data_list.extend(deepcopy(process_batch(batch_args)))
+
+        # Isomorphism test
         print("Removing duplicated data ...")
         dataset = []
         for graph in data_list:
-            if graph != None and not self.is_duplicate(graph, dataset):
-                dataset.append(graph)
+            if graph != None:
+                is_duplicate, iso_idx = self.is_duplicate(graph, dataset)
+                if not is_duplicate:
+                    dataset.append(graph)
+                # else:
+                #     self.duplicates.append((graph, dataset[iso_idx]))  # for testing purposes
+
+            else:
+                continue
         print("Graph dataset size: {}".format(len(dataset)))
         data, slices = self.collate(dataset)
         save((data, slices), self.processed_paths[0])
@@ -164,7 +179,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
     def is_duplicate(self, 
                      graph: Data, 
                      graph_list: list[Data], 
-                     eps: float=0.01) -> bool:
+                     eps: float=0.01) -> tuple:
         """
         Perform isomorphism test for the input graph before including it in the final dataset.
         Test based on graph formula and energy difference.
@@ -178,7 +193,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
             (bool): Whether the graph passed the isomorphism test.
         """
         if len(graph_list) == 0:
-            return False 
+            return False, None
         else:
             for rival in graph_list:
                 if graph.type != rival.type:
@@ -195,79 +210,88 @@ class AdsorptionGraphDataset(InMemoryDataset):
                     continue
                 if graph.metal != rival.metal:
                     continue
+                if graph.bb_type != rival.bb_type: # for TSs
+                    continue
                 print("Isomorphism detected for {}".format(graph.formula))
-                return True
-            return False
+                return True, graph_list.index(rival)
+            return False, None
 
+    def row_to_data(self,
+                    row: AtomsRow,
+                    ohe_elements: OneHotEncoder = OHE_ELEMENTS,
+                    target: str = "scaled_energy",
+                    adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> Optional[Data]:
+        """
+        Generate PyG Data object from ASE database row.
+        Used for multiprocessing.
 
-def row_to_data(row: AtomsRow,
-                 graph_structure_params: dict[str, Union[float, int, bool]],
-                 ohe_elements: OneHotEncoder,
-                 node_feats: dict[str, bool],
-                 target: str,
-                 adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> Optional[Data]:
-    """
-    Generate PyG Data object from ASE database row.
-    Used for multiprocessing.
+        Args:
+            row (AtomsRow): ASE database row.
+            ohe_elements (OneHotEncoder): One-hot encoder for chemical elements.
+            target (str): Target value for the graph.
+            adsorbate_elements (list): List of adsorbate elements.
 
-    Args:
-
-    Returns:
-        graph (Data): PyG Data object.
-    """
-    # GRAPH STRUCTURE GENERATION
-    atoms = row.toatoms()
-    formula = atoms.get_chemical_formula(mode='metal')
-    calc_type = row.get("calc_type")
-    if not ase_adsorption_filter(atoms, adsorbate_elements):
-        return None
-    
-    try:
-        graph, surf_atoms, bb_idxs = atoms_to_pyg(atoms,
-                                                  calc_type,
-                                                  graph_structure_params["tolerance"], 
-                                                  graph_structure_params["scaling_factor"],
-                                                  graph_structure_params["second_order"], 
-                                                  ohe_elements, 
-                                                  adsorbate_elements)
-    except:
-        print("Error in graph generation for {}\n".format(formula))
-        return None
-    graph.target, graph.y = tensor(float(row.get(target)), dtype=torch.float), tensor(float(row.get(target)), dtype=torch.float)
-    graph.bb_idxs = bb_idxs if bb_idxs != None else 'None'
-    graph.formula = formula
-    graph.type = calc_type
-    graph.metal = row.get("metal")
-    graph.facet = row.get("facet")
-    if bb_idxs != None:
-        bb_type = [atoms[bb_idxs[0]].symbol, atoms[bb_idxs[1]].symbol]
-        graph.bb_type = "-".join(sorted(bb_type))
-    else: 
-        graph.bb_type = 'None'
-    graph.calc_path = row.get("calc_path")
-    graph.node_feats = list(ohe_elements.categories_[0])
-    graph.edge_feats = ["ts"]
-    graph.atoms = atoms
-    for filter in [adsorption_filter, H_filter, C_filter, fragment_filter]:
-        if not filter(graph, adsorbate_elements):
-            return None 
-    
-    # NODE FEATURIZATION
-    try:
-        if node_feats["adsorbate"]:
-            graph = adsorbate_node_featurizer(graph, adsorbate_elements)
-        if node_feats["radical"]:
-            graph = get_radical_atoms(graph, adsorbate_elements)
-        if node_feats["valence"]:
-            graph = get_atom_valence(graph, adsorbate_elements)
-        if node_feats["gcn"]:
-            graph = get_gcn(graph, atoms, adsorbate_elements, surf_atoms)
-        if node_feats["magnetization"]:
-            graph = get_magnetization(graph, adsorbate_elements, node_feats)
-        return graph
-    except:
-        print("Error in node featurization for {}\n".format(formula))
-        return None
+        Returns:
+            graph (Data): PyG Data object.
+        """
+        # GRAPH STRUCTURE GENERATION
+        atoms = row.toatoms()
+        formula = atoms.get_chemical_formula(mode='metal')
+        calc_type = row.get("calc_type")
+        if not ase_adsorption_filter(atoms, adsorbate_elements):
+            return None
+        
+        try:
+            graph, surf_atoms, bb_idxs = atoms_to_pyg(atoms,
+                                                    calc_type,
+                                                    self.graph_structure_params["tolerance"], 
+                                                    self.graph_structure_params["scaling_factor"],
+                                                    self.graph_structure_params["second_order"], 
+                                                    ohe_elements, 
+                                                    adsorbate_elements)
+        except:
+            print("Error in graph generation for {}\n".format(formula))
+            return None
+        graph.target, graph.y = tensor(float(row.get(target)), dtype=torch.float), tensor(float(row.get(target)), dtype=torch.float)
+        graph.bb_idxs = bb_idxs if bb_idxs != None else 'None'
+        graph.formula = formula
+        graph.type = calc_type
+        graph.metal = row.get("metal")
+        graph.facet = row.get("facet")
+        if bb_idxs != None:
+            bb_type = [atoms[bb_idxs[0]].symbol, atoms[bb_idxs[1]].symbol]
+            graph.bb_type = "-".join(sorted(bb_type))        
+            try:
+                graph.img_freqs = row.note.split()[0]
+            except ValueError:
+                graph.img_freqs = "N/A"
+        else: 
+            graph.bb_type = 'None'
+            graph.img_freqs = "None" 
+        graph.calc_path = row.get("calc_path")
+        graph.node_feats = list(ohe_elements.categories_[0])
+        graph.edge_feats = ["ts"]
+        graph.e_mol = row.get("e_mol")
+        for filter in [adsorption_filter, H_filter, C_filter, fragment_filter]:
+            if not filter(graph, adsorbate_elements):
+                return None 
+        
+        # NODE FEATURIZATION
+        try:
+            if self.node_feats_params["adsorbate"]:
+                graph = adsorbate_node_featurizer(graph, adsorbate_elements)
+            if self.node_feats_params["radical"]:
+                graph = get_radical_atoms(graph, adsorbate_elements)
+            if self.node_feats_params["valence"]:
+                graph = get_atom_valence(graph, adsorbate_elements)
+            if self.node_feats_params["gcn"]:
+                graph = get_gcn(graph, atoms, adsorbate_elements, surf_atoms)
+            if self.node_feats_params["magnetization"]:
+                graph = get_magnetization(graph, adsorbate_elements, self.node_feats_params)
+            return graph
+        except:
+            print("Error in node featurization for {}\n".format(formula))
+            return None
     
 
 def atoms_to_data(structure: Union[Atoms, str], 

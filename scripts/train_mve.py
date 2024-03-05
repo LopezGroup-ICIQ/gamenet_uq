@@ -15,11 +15,11 @@ import numpy as np
 from torch import load
 from numpy import random
 
-from fats.training import create_loaders, scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
-from fats.classes import EarlyStopper
-from fats.nets import FATS
-from fats.post_training import create_model_report
-from fats.dataset import AdsorptionGraphDataset
+from gamenet_uq.training import create_loaders, scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
+from gamenet_uq.classes import EarlyStopper
+from gamenet_uq.nets import FATS
+from gamenet_uq.post_training import create_model_report
+from gamenet_uq.dataset import AdsorptionGraphDataset
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
@@ -53,6 +53,7 @@ if __name__ == "__main__":
     else:
         print("Device name: CPU")
         device_dict["name"] = "CPU"     
+
     # Load graph dataset 
     dataset = AdsorptionGraphDataset(ase_database_path,
                                      graph_dataset_dir,
@@ -60,49 +61,49 @@ if __name__ == "__main__":
                                      '')
     ohe_elements = dataset.ohe_elements
     node_feature_list = dataset.node_feature_list
-    # dataset = load('../data/dataset_cleaned_wo_rings_and_outliers.pt')  # From GAME-Net UQ in CARE now
-    dataset = load('../data/dataset_wo_outliers_FINAL_FINAL.pt')  # From GAME-Net UQ in CARE now
-    # Apply 10x oversampling for graphs whose metal attribute is equal to 'N/A' and facet attribute is equal to 'N/A'
-    # gas_data = [graph for graph in dataset if graph.metal == 'N/A' and graph.facet == 'N/A']
-    # dataset += gas_data * 9
-
-    # Shuffle dataset
+    
+    dataset = load('../data/dataset_worings.pt')   
     random.shuffle(dataset)
 
-    # Create train/validation/test dataloaders  
+    # Create train/validation/test dataloaders (apply oversampling here for gas)
     train_loader, val_loader, test_loader = create_loaders(dataset,
                                                            batch_size=train["batch_size"],
                                                            split=train["splits"], 
                                                            test=train["test_set"], 
-                                                           balance_func=None)  
+                                                           balance_func=None) 
+    
     # Target scaling 
     train_loader, val_loader, test_loader, mean, std = scale_target(train_loader,
                                                                     val_loader,
                                                                     test_loader, 
                                                                     mode=train["target_scaling"], 
                                                                     test=train["test_set"])    
-    # Instantiate the model
+    
+    # Model initialization
     model = FATS(len(node_feature_list),                    
                     dim=architecture["dim"],
                     num_linear=architecture["num_linear"], 
                     num_conv=architecture["num_conv"],    
                     bias=architecture["bias"]).to(device)
-    initial_params = {name: p.clone() for name, p in model.named_parameters()}     
+    initial_params = {name: p.clone() for name, p in model.named_parameters()}  
+
     # Load optimizer, lr-scheduler, and early stopper
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=train["lr0"],
                                  eps=train["eps"], 
                                  weight_decay=train["weight_decay"],
                                  amsgrad=train["amsgrad"])
+    
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                               mode='min',
                                                               factor=train["factor"],
                                                               patience=train["patience"],
                                                               min_lr=train["minlr"])
+    
     if train["early_stopping"]:
         early_stopper = EarlyStopper(patience=train["es_patience"], start_epoch=train["es_start_epoch"])       
     
-    # TRAINING LOOP 
+    # Training loop
     loss_list, train_list, val_list, test_list, lr_list = [], [], [], [], []         
     t0 = time.time()
     for epoch in range(1, train["epochs"]+1):

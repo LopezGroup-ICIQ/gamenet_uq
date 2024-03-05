@@ -154,10 +154,16 @@ def ase_adsorption_filter(atoms: Atoms,
     """
     if all([atom.symbol in adsorbate_elems for atom in atoms]):
         return True
-    min_adsorbate_z = min([atom.position[2] for atom in atoms if atom.symbol in adsorbate_elems])
-    max_surface_z = max([atom.position[2] for atom in atoms if atom.symbol not in adsorbate_elems])
-    if min_adsorbate_z < 0.8 * max_surface_z:
-        print(f"{atoms.get_chemical_formula(mode='metal')}: Adsorbate incorporated in the bulk.")
-        return False
     else:
-        return True
+        z_adsorbate = [atom.position[2] for atom in atoms if atom.symbol in adsorbate_elems]
+        z_surface = [atom.position[2] for atom in atoms if atom.symbol not in adsorbate_elems]
+        if len(z_adsorbate) == 0 or len(z_surface) == 0:
+            print(f"{atoms.get_chemical_formula(mode='metal')}: No adsorbate or surface atoms found.")
+            return False
+        min_adsorbate_z = min(z_adsorbate)
+        max_surface_z = max(z_surface)
+        if min_adsorbate_z < 0.75 * max_surface_z:
+            print(f"{atoms.get_chemical_formula(mode='metal')}: Adsorbate incorporated in the bulk.")
+            return False
+        else:
+            return True

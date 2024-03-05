@@ -60,7 +60,6 @@ def create_model_report(model_name: str,
     graph = configuration_dict["graph"]
     train = configuration_dict["train"]
     architecture = configuration_dict["architecture"]
-    ase_database_path = configuration_dict["data"]["ase_database_path"]
     
     # 4) Extract graph conversion parameters
     voronoi_tol = graph["structure"]["tolerance"]
@@ -99,11 +98,11 @@ def create_model_report(model_name: str,
     model.to("cpu")
     x_pred, x_true = [], []  # Train set
     a_pred, a_true = [], []  # Validation set
-    for batch in train_loader:
-        batch = batch.to("cpu")
+    
+    for graph in train_loader.dataset:  # iter graph by graph to avoid reshuffling here
         with torch.no_grad():
-            x_pred += model(batch).mean
-            x_true += batch.target
+            x_pred += model(graph).mean
+            x_true += graph.target
     for batch in val_loader:
         batch = batch.to("cpu")
         with torch.no_grad():

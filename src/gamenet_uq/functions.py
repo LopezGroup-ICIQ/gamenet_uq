@@ -41,11 +41,7 @@ def split_percentage(splits: int, test: bool=True) -> tuple[int]:
         return a, b, b
     else:
         return int((1 - 1/splits) * 100), math.ceil(100 / splits)
-
-
-
-
-
+    
 
 def create_loaders(dataset: InMemoryDataset,
                    split: int=5,
@@ -232,7 +228,7 @@ def test_loop(model,
         error(float): Mean Absolute Error (MAE) of the test loader.
     """
     model.eval()   
-    error = 0
+    error = 0.0
     with torch.no_grad():
         for batch in loader:
             batch = batch.to(device)
