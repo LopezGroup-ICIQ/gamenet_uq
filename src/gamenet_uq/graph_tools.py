@@ -12,8 +12,7 @@ from sklearn.preprocessing._encoders import OneHotEncoder
 from gamenet_uq.constants import RGB_COLORS
 
 
-def convert_pyg_to_nx(graph: Data, 
-                     one_hot_encoder_elements: OneHotEncoder) -> Graph:
+def convert_pyg_to_nx(graph: Data) -> Graph:
     """
     Convert graph in pytorch_geometric to NetworkX type.    
     For each node in the graph, the label corresponding to the atomic species 
@@ -24,13 +23,8 @@ def convert_pyg_to_nx(graph: Data,
     Returns:
         nx_graph(networkx.classes.graph.Graph): NetworkX graph object.
     """
-    node_features_matrix = graph.x.numpy()
     n_nodes = graph.num_nodes
-    atom_list = []
-    elements_list = list(one_hot_encoder_elements.categories_[0])
-    for i in range(n_nodes):
-        index = np.where(node_features_matrix[i,:] == 1)[0][0]
-        atom_list.append(elements_list[index])
+    atom_list = [graph.elem[i] for i in range(n_nodes)]
     edge_ts_list = {}
     for i in range(graph.num_edges):
         if graph.edge_attr[i, 0] == 1:
@@ -79,7 +73,6 @@ def convert_networkx_to_gpytorch(graph_nx: Graph,
 
 
 def graph_plotter(graph: Data,
-                  one_hot_encoder_elements: OneHotEncoder,
                   node_size: int=320,
                   font_color: str="white",
                   font_weight: str="bold",
@@ -96,7 +89,7 @@ def graph_plotter(graph: Data,
     Args:
         graph(torch_geometric.data.Data): graph object in pyG format.
     """
-    nx_graph = convert_pyg_to_nx(graph, one_hot_encoder_elements)
+    nx_graph = convert_pyg_to_nx(graph)
     labels = get_node_attributes(nx_graph, 'atom')
     colors = list(get_node_attributes(nx_graph, 'rgb').values()) 
     # colour edges based on ts_edge attribute
@@ -130,55 +123,4 @@ def graph_plotter(graph: Data,
     plt.title(title, fontsize=10)
     # Remove frame
     plt.axis('off')
-    plt.draw()                    
-
-
-def extract_adsorbate(graph: Data, 
-                      encoder: OneHotEncoder) -> Data:
-    """
-    Extract molecule from the adsorption graph, removing metals and connections between 
-    metal and molecule. Node-featurization independent.
-    
-    Args:
-        graph (torch_geometric.data.Data): Adsorption system in graph format
-    Returns:
-        adsorbate(torch_geometric.data.Data): Molecule in graph format
-    """
-    node_dim = graph.x.shape[1]
-    CHONS = [list(encoder.categories_[0]).index(element) for element in ["C", "H", "O", "N", "S"]] 
-    y = [None] * graph.num_nodes  # function for new indexing
-    node_list, node_index, edge_list, edge_index = [], [], [], []  
-    # 1) Node selection 
-    counter = 0
-    for atom in range(graph.num_nodes):
-        index = torch.where(graph.x[atom, :] == 1)[0][0].item()
-        if index in CHONS:
-            y[atom] = counter
-            node_index.append(atom)
-            node_list.append(graph.x[atom, :])
-            counter += 1
-    def ff(num):  # new indexing for the new graph (important!)
-        return y[num]
-    # 2) Edge selection
-    for link in range(graph.num_edges):
-        nodes = graph.edge_index[:, link]
-        switch = 0
-        for node in nodes:
-            if node not in node_index:
-                switch = 1
-        if switch == 0:
-            edge_list.append(nodes)
-            edge_index.append(link)
-        switch = 0
-    # 3) Graph construction
-    x = torch.zeros((len(node_list), node_dim))
-    edge = torch.zeros((2, len(edge_index)), dtype=torch.long)
-    for i in range(x.shape[0]):
-        x[i, :] = node_list[i]
-    for j in range(2):
-        for k in range(edge.shape[1]):
-            edge[j, k] = ff(int(edge_list[k][j]))
-    edge.to(torch.long)
-    return Data(x, edge), y
-
-
+    plt.draw()

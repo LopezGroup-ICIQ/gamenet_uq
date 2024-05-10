@@ -20,7 +20,7 @@ import numpy as np
 from ase.atoms import Atoms
 from ase.io import read
 
-from gamenet_uq.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter, ase_adsorption_filter
+from gamenet_uq.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter, ase_adsorption_filter, is_ring
 from gamenet_uq.graph import atoms_to_pyg
 from gamenet_uq.node_featurizers import get_gcn, get_radical_atoms, get_atom_valence, adsorbate_node_featurizer, get_magnetization
 
@@ -157,7 +157,8 @@ class AdsorptionGraphDataset(InMemoryDataset):
         for i in range(0, len(args), batch_size):
             print("Processing batch {} to {} ...".format(i, i + batch_size))
             batch_args = args[i:i + batch_size]
-            data_list.extend(deepcopy(process_batch(batch_args)))
+            data_list.extend(deepcopy(process_batch(batch_args)))  # deepcopy to avoid memory issues
+        # https://ppwwyyxx.com/blog/2022/Demystify-RAM-Usage-in-Multiprocess-DataLoader/
 
         # Isomorphism test
         print("Removing duplicated data ...")
@@ -258,6 +259,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         graph.type = calc_type
         graph.metal = row.get("metal")
         graph.facet = row.get("facet")
+        graph.inchikey = row.get("inchikey")
         if bb_idxs != None:
             bb_type = [atoms[bb_idxs[0]].symbol, atoms[bb_idxs[1]].symbol]
             graph.bb_type = "-".join(sorted(bb_type))        
@@ -272,6 +274,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         graph.node_feats = list(ohe_elements.categories_[0])
         graph.edge_feats = ["ts"]
         graph.e_mol = row.get("e_mol")
+        graph.has_ring = is_ring(graph, adsorbate_elements)  # adsorbate with ring
         for filter in [adsorption_filter, H_filter, C_filter, fragment_filter]:
             if not filter(graph, adsorbate_elements):
                 return None 

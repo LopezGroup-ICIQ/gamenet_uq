@@ -7,9 +7,16 @@ import argparse
 from torch import load, Tensor
 from torch_geometric.data import Data, InMemoryDataset
 
-DATASET_PATH = "/home/smorandi/gamenet_uq/data/dataset_worings.pt"
-dataset = load(DATASET_PATH)
+from gamenet_uq.dataset import AdsorptionGraphDataset
 
+ASE_DB_PATH = "../data/fg.db"
+GRAPH_DATASET_PATH = "../data"
+STRUCTURE_DICT = {"tolerance": 0.25, "scaling_factor": 1.25, "second_order": True}
+FEATURES_DICT = {"adsorbate": False, "radical": False, "valence": False, "gcn": True, "magnetization": False}
+GRAPH_PARAMS = {"structure": STRUCTURE_DICT, "features": FEATURES_DICT, "target": "scaled_energy"}
+DB_KEY = ''
+
+dataset = AdsorptionGraphDataset(ASE_DB_PATH, GRAPH_DATASET_PATH, GRAPH_PARAMS, DB_KEY)
 
 class TestDataset(unittest.TestCase):
     def test_undirected(self):
@@ -23,9 +30,19 @@ class TestDataset(unittest.TestCase):
         """
         Check that all the graphs are of type torch_geometric.data.Data
         """
-        self.assertIsInstance(dataset, (list, InMemoryDataset))
+        self.assertIsInstance(dataset, InMemoryDataset)
         for graph in dataset:
             self.assertIsInstance(graph, Data)
+
+    def test_graphs(self):
+        """
+        Check that the dataset contains the expected number of graphs
+        """
+        for graph in dataset:
+            self.assertTrue(len(graph.elem) != 0)
+            self.assertTrue(graph.target == graph.y)
+            self.assertTrue(-700.0 < graph.y < 20.0)
+
 
 class TestNodes(unittest.TestCase):
     def test_node_features(self):

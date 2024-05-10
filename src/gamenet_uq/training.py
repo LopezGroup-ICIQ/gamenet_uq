@@ -160,11 +160,11 @@ def scale_target(train_loader: DataLoader,
         return train_loader, val_loader, test_loader, 0, 1
 
 
-def train_loop(model,
+def train_loop(model: torch.nn.Module,
                device:str,
                train_loader: DataLoader,
-               optimizer,
-               loss_fn):
+               optimizer: torch.optim.Optimizer,
+               loss_fn) -> tuple[float]:
     """
     Run training iteration (epoch) 
     For each batch in the epoch, the following actions are performed:
@@ -183,50 +183,48 @@ def train_loop(model,
     """
     model.train()  
     loss_all, mae_all = 0, 0
+    mean_std = 0
     for batch in train_loader:  # batch-wise
         batch = batch.to(device)
         optimizer.zero_grad()                     # Set gradients of all tensors to zero
         loss = loss_fn(model, batch)
         mae = F.l1_loss(model(batch).mean.squeeze(), batch.y)    # For comparison with val/test data
+        mean_std += model(batch).scale.sum().item()
         loss.backward()                           # Get gradient of loss function wrt parameters
         loss_all += loss.item() * batch.num_graphs
         mae_all += mae.item() * batch.num_graphs
         optimizer.step()                          # Update model parameters
     loss_all /= len(train_loader.dataset)
     mae_all /= len(train_loader.dataset)
-    return loss_all, mae_all
+    mean_std /= len(train_loader.dataset)
+    return loss_all, mae_all, mean_std
 
 
-def test_loop(model,
+def test_loop(model: torch.nn.Module,
               loader: DataLoader,
               device: str,
-              std: float,
-              mean: float=None, 
-              scaled_graph_label: bool= True) -> float:
+              std: float) -> tuple[float]:
     """
-    Run test or validation iteration (epoch).
-    For each batch in the validation/test set, the following steps are performed:
-    1) Set the GNN model in evaluation mode
-    2) Move the batch to the training device (CPU or GPU)
-    3) Compute the Mean Absolute Error (MAE)
+    Run test/validation iteration (epoch).
+    For each batch of validation/test data, the following steps are performed:
+    1) Move the batch to the training device
+    2) Compute the Mean Absolute Error (MAE) and mean standard deviation of the batch
     Args:
         model (): GNN model object.
         loader (Dataloader object): Dataset for validation/testing.
         device (str): device on which training is performed.
         std (float): standard deviation of the training+validation datasets [eV]
-        mean (float): mean of the training+validation datasets [eV]
-        scaled_graph_label (bool): whether the graph labels are in eV or in a scaled format.
-        verbose (int): 0=no printing info 1=printing information
     Returns:
-        error(float): Mean Absolute Error (MAE) of the test loader.
+        error, std_mean (tuple[float]): MAE and mean standard deviation of the whole val/test set.
     """
-    model.eval()   
-    error = 0
+    model.eval()       
+    error, std_mean = 0.0, 0.0
     with torch.no_grad():
         for batch in loader:
             batch = batch.to(device)
-            error += (model(batch).mean * std - batch.y * std).abs().sum().item()   
-    return error / len(loader.dataset) 
+            error += (model(batch).mean * std - batch.y * std).abs().sum().item()   # eV
+            std_mean += model(batch).scale.sum().item() * std  # eV
+    return error / len(loader.dataset), std_mean / len(loader.dataset) 
 
 
 def get_mean_std_from_model(path:str) -> tuple[float]:

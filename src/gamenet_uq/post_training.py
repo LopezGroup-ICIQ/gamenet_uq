@@ -27,7 +27,8 @@ def create_model_report(model_name: str,
                         mae_lists: tuple[list], 
                         one_hot_encoder_elements, 
                         device: dict=None, 
-                        params_changes: dict=None):
+                        params_changes: dict=None, 
+                        std_lists: tuple[list]=None,):
     """Create full report of the performed GNN training.
 
     Args:
@@ -74,6 +75,11 @@ def create_model_report(model_name: str,
         std_tv = scaling_params[1]
     else:
         pass
+
+    if std_lists != None:
+        train_std = std_lists[0]
+        val_std = std_lists[1]
+        test_std = std_lists[2]
     
     # 6) Create directory structure where to store model training results
     try:
@@ -162,13 +168,13 @@ def create_model_report(model_name: str,
     with open('{}/{}/training.csv'.format(model_path, model_name), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if train["test_set"] == False:
-            writer.writerow(["Epoch", "Train_MAE_eV", "Val_MAE_eV", "Learning_Rate"])
+            writer.writerow(["Epoch", "Train_MAE_eV", "Val_MAE_eV", "Train_std_eV", "Val_std_eV", "Learning_Rate"])
             for i in range(len(train_list)):
-                writer.writerow([i+1, train_list[i], val_list[i], lr_list[i]])
+                writer.writerow([i+1, train_list[i], val_list[i], train_std[i], val_std[i], lr_list[i]])
         else:
-            writer.writerow(["Epoch", "Train_MAE_eV", "Val_MAE_eV", "Test_MAE_eV", "Learning_Rate"])
+            writer.writerow(["Epoch", "Train_MAE_eV", "Val_MAE_eV", "Test_MAE_eV", "Train_std_eV", "Val_std_eV", "Test_std_eV", "Learning_Rate"])
             for i in range(len(train_list)):
-                writer.writerow([i+1, train_list[i], val_list[i], test_list[i], lr_list[i]])
+                writer.writerow([i+1, train_list[i], val_list[i], test_list[i], train_std[i], val_std[i], test_std[i], lr_list[i]])
 
     
     loss = train["loss_function"] 
@@ -341,7 +347,7 @@ def create_model_report(model_name: str,
             else:
                 file1.write("{}) {}    Error: {:.2f} eV    (index={})\n".format(counter, test_label_list[sample], error_test[sample], sample))
             text = "{}\nError: {:.2f} eV".format(test_label_list[sample], error_test[sample])
-            graph_plotter(test_loader.dataset[sample], one_hot_encoder_elements, text=text, node_index=False)
+            graph_plotter(test_loader.dataset[sample], text=text, node_index=False)
             plt.savefig("{}/{}/Outliers/{}.svg".format(model_path, model_name, test_label_list[sample].strip()))
             plt.close()
     file1.close()    

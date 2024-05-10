@@ -9,7 +9,7 @@ from torch_geometric.data import Data
 import numpy as np
 
 from gamenet_uq.functions import get_graph_conversion_params, get_mean_std_from_model
-from gamenet_uq.graph_tools import extract_adsorbate
+from gamenet_uq.graph_filters import extract_adsorbate
 
 class EarlyStopper:
     """

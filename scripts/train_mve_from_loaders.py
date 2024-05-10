@@ -14,14 +14,12 @@ seed_everything(42)
 import numpy as np
 from torch import load
 from numpy import random
-# from torch_geometric.loader import DataLoader
 
-from gamenet_uq.training import create_loaders, scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
+from gamenet_uq.training import scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
 from gamenet_uq.classes import EarlyStopper
 from gamenet_uq.nets import GameNetUQ
 from gamenet_uq.post_training import create_model_report
 from gamenet_uq.dataset import AdsorptionGraphDataset
-# from gamenet_uq.functions import get_mean_std_from_model
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
@@ -63,15 +61,10 @@ if __name__ == "__main__":
                                      '')
     ohe_elements = dataset.ohe_elements
     node_feature_list = dataset.node_feature_list
-    dataset = [graph for graph in dataset if graph.has_ring == False]
-    random.shuffle(dataset)
-
-    # Create train/validation/test dataloaders (apply oversampling here for gas)
-    train_loader, val_loader, test_loader = create_loaders(dataset,
-                                                           batch_size=train["batch_size"],
-                                                           split=train["splits"], 
-                                                           test=train["test_set"], 
-                                                           balance_func=None) 
+    train_loader = load("../trainings/DATALAODERS/train_loader.pth")
+    val_loader = load("../trainings/DATALAODERS/val_loader.pth")
+    test_loader = load("../trainings/DATALAODERS/test_loader.pth")
+    
     
     # Target scaling 
     train_loader, val_loader, test_loader, mean, std = scale_target(train_loader,
@@ -81,7 +74,7 @@ if __name__ == "__main__":
                                                                     test=train["test_set"])    
     
     # Model initialization
-    model = GameNetUQ(len(node_feature_list),                    
+    model = GameNetUQ(20,                    
                     dim=architecture["dim"],
                     num_linear=architecture["num_linear"], 
                     num_conv=architecture["num_conv"],    

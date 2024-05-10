@@ -11,9 +11,20 @@ import torch
 
 from gamenet_uq.graph import get_voronoi_neighbourlist
 
-def get_magnetization(graph: Data):
+def get_magnetization(graph: Data) -> Data:
+    """
+    Add a node feature to the graph which is 1 if the metal is magnetic, 0 otherwise.
+    graph must have as attributes:
+    - metal (str): symbol of the metal in the graph
+
+    Args:
+        graph (Data): PyG Data object
+    
+    Returns:
+        Data: PyG Data object with the magnetization as a node feature. Data.x.shape[1] increases by 1.
+    """
     if graph.metal in ("Fe", "Co", "Ni"):
-            graph.x = torch.cat((graph.x, torch.ones((graph.x.shape[0], 1))), dim=1)
+        graph.x = torch.cat((graph.x, torch.ones((graph.x.shape[0], 1))), dim=1)
     else:
         graph.x = torch.cat((graph.x, torch.zeros((graph.x.shape[0], 1))), dim=1)
     return graph
@@ -27,9 +38,8 @@ def adsorbate_node_featurizer(graph: Data,
     - node_feats (list[str]): list of node features to be used in the graph
     """
     x_adsorbate = torch.zeros((graph.x.shape[0], 1))
-    for i, node in enumerate(graph.x):
-        index = torch.where(node == 1)[0][0].item()
-        x_adsorbate[i, 0] = 1 if graph.node_feats[index] in adsorbate_elements else 0
+    for i in range(graph.x.shape[0]):
+        x_adsorbate[i, 0] = 1 if graph.elem[i] in adsorbate_elements else 0
     graph.x = torch.cat((graph.x, x_adsorbate), dim=1)
     return graph
 
@@ -162,12 +172,3 @@ def get_atom_valence(atoms_obj: Atoms,
     degree_array = degree_vector(atom_array) / max_degree_vector(atom_array)  # valence = x / x_max in order to have the same trend as gcn 
     valence = degree_array.reshape(-1, 1)
     return valence
-
-# try:
-        #     x_valence = torch.zeros((graph.x.shape[0], 1))
-        #     scaled_degree_vector = get_atom_valence(atoms_obj, adsorbate_elements)
-        #     for index, node in enumerate(scaled_degree_vector):
-        #         x_valence[index, 0] = scaled_degree_vector[index, 0]
-        #     graph.x = torch.cat((graph.x, x_valence), dim=1)
-        # except:
-        #     return None

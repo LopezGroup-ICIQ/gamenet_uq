@@ -18,7 +18,8 @@ from gamenet_uq.constants import CORDERO
 def get_voronoi_neighbourlist(atoms: Atoms, 
                               tol: float, 
                               scaling_factor: float, 
-                              adsorbate_elems: list[str]) -> np.ndarray:
+                              adsorbate_elems: list[str], 
+                              mic=True) -> np.ndarray:
     """
     Get connectivity list from Voronoi analysis, considering periodic boundary conditions.
     Assumption: The surface does not contain elements present in the adsorbate.
@@ -36,6 +37,9 @@ def get_voronoi_neighbourlist(atoms: Atoms,
         Each connection is represented once, i.e. if atom A is connected to atom B, the pair (A, B) will be present in the list,
         but not the pair (B, A).
     """
+
+    if len(atoms) == 0:
+        return np.array([])
     
     # First necessary condition for two atoms to be linked: Sharing a Voronoi facet
     coords_arr = np.repeat(np.expand_dims(np.copy(atoms.get_scaled_positions()), axis=0), 27, axis=0)
@@ -54,7 +58,7 @@ def get_voronoi_neighbourlist(atoms: Atoms,
         for pair in pairs_corr:
             atom1, atom2 = atoms[pair[0]].symbol, atoms[pair[1]].symbol
             threshold = CORDERO[atom1] + CORDERO[atom2] + tol
-            distance = atoms.get_distance(pair[0], pair[1], mic=True)
+            distance = atoms.get_distance(pair[0], pair[1], mic=mic)
             if atom1 in adsorbate_elems and atom2 not in adsorbate_elems:
                 threshold += max(scaling_factor + increment - 1.0, 0) * CORDERO[atom2]
             if atom1 not in adsorbate_elems and atom2 in adsorbate_elems:

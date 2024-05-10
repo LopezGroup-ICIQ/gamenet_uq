@@ -11,15 +11,38 @@ from torch import tensor
 from networkx import is_connected, cycle_basis
 
 
+def extract_adsorbate(graph: Data,
+                     adsorbate_elems: list[str]) -> bool:
+    """Extract adsorbate from the adsorption graph (adsorbate+surface).
+    
+    Args:
+        graph(Data): Adsorption graph. It must contain a 'elem' attribute, which is a list
+            of atomic elements in the graph.
+        adsorbate_elems(list[str]): List of atomic elements that adsorbates can contain.
+        
+    Returns:
+        (Data): Adsorbate graph."""
+    
+    assert graph.elem is not None, "elem should not be None"
+    adsorbate_nodes = [node_idx for node_idx in range(graph.num_nodes) if graph.elem[node_idx] in adsorbate_elems]
+    new_graph = graph.subgraph(tensor(adsorbate_nodes))
+    new_elem = [graph.elem[i] for i in range(len(graph.elem)) if i in adsorbate_nodes]
+    new_graph.elem = new_elem
+    return new_graph
+
+
 def fragment_filter(graph: Data, 
                     adsorbate_elems: list[str]) -> bool:
     """Check adsorbate fragmentation in the graph.
     Args:
         graph(Data): Adsorption graph.
+        adsorbate_elems(list[str]): List of atomic elements in the adsorbate.
+
     Returns:
-        (bool): True = Adsorbate not fragmented in the graph
-                False = Adsorbate fragmented in the graph
+        (bool): True = Adsorbate is not fragmented
+                False = Adsorbate is fragmented
     """
+
     assert graph.x is not None, "x should not be None"
     assert graph.num_nodes is not None, "num_nodes should not be None"
     adsorbate = extract_adsorbate(graph, adsorbate_elems)
@@ -35,12 +58,6 @@ def fragment_filter(graph: Data,
         return True
     
 
-def extract_adsorbate(graph: Data,
-                     adsorbate_elems: list[str]) -> bool:
-    """Extract adsorbate from the graph."""
-    adsorbate_nodes = [node_idx for node_idx in range(graph.num_nodes) if graph.elem[node_idx] in adsorbate_elems]
-    return graph.subgraph(tensor(adsorbate_nodes))
-
 def is_ring(graph: Data, 
             adsorbate_elems) -> bool:
     """Check if the graph contains a ring."""
@@ -49,7 +66,6 @@ def is_ring(graph: Data,
     cycles = list(cycle_basis(graph_nx))
     ring_nodes = set(node for cycle in cycles for node in cycle)
     if len(ring_nodes) > 0:
-        print(f"{graph.formula}: Ring detected.\n".format(graph.formula))
         return True
     else:
         return False
@@ -61,12 +77,11 @@ def H_filter(graph: Data,
     Graph filter that checks the connectivity of H atoms whithin the adsorbate.
     Each H atoms must be connected to maximum one atom within the adsorbate.
     Args:
-        graph(torch_geometric.data.Data): Graph object representation
-        encoder(sklearn.preprocessing._encoders.OneHotEncoder): One-hot encoder for atomic elements
+        graph(Data): Molecular graph object
         adsorbate_elems(list[str]): List of atomic elements in the adsorbate
     Returns:
         (bool): True = Correct connectivity for all H atoms in the adsorbate
-                False = Bad connectivity for at least one H atom in the adsorbate
+                False = Wrong connectivity for at least one H atom in the adsorbate
     """
     # 1) Get indices of adsorbate atoms in the one-hot encoder
     adsorbate_elems_indices = [graph.node_feats.index(element) for element in adsorbate_elems]  
