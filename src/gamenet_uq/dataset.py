@@ -7,11 +7,10 @@ import resource
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 
 
-from torch_geometric.data import InMemoryDataset, Data
+from torch_geometric.data import InMemoryDataset, Data, download_url
 from torch import zeros, where, cat, load, save, tensor
 import torch
 import torch.multiprocessing as mp
-# mp.set_forkserver_preload(["torch", "torch_geometric"])
 from ase.db import connect
 from ase.db.core import AtomsRow
 from sklearn.preprocessing import OneHotEncoder
@@ -32,7 +31,7 @@ OHE_ELEMENTS = OneHotEncoder().fit(np.array(ADSORBATE_ELEMS + METALS).reshape(-1
 def pyg_dataset_id(ase_database_path: str, 
                    graph_params: dict) -> str:
     """
-    Provide dataset identifier based on the provided graph conversion settings.
+    Return dataset identifier based on the graph conversion settings.
     
     Args:
         ase_database_path (str): Path to the ASE database containing the adsorption data.
@@ -103,6 +102,8 @@ class AdsorptionGraphDataset(InMemoryDataset):
         >>> dataset = AdsorptionGraphDataset(ase_database_path, graph_dataset_dir, graph_params, "calc_type=ts,facet=fcc(111),metal=Pt")
     """
 
+    URL = "https://zenodo.org/"  # TO BE ADDED ONCE PUBLISHED
+
     def __init__(self,
                  ase_database_path: str,
                  graph_dataset_dir: str,
@@ -123,7 +124,6 @@ class AdsorptionGraphDataset(InMemoryDataset):
         self.ohe_elements = OneHotEncoder().fit(np.array(self.elements_list).reshape(-1, 1)) 
         self.node_feature_list = list(self.ohe_elements.categories_[0])
         self.node_dim = len(self.node_feature_list)
-        # self.duplicates = []
         for key, value in graph_params["features"].items():
             if value:
                 self.node_dim += 1
@@ -140,7 +140,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         return self.output_path
     
     def download(self):
-        pass
+        download_url(self.URL, self.root)  # download ase database from Zenodo if not available
     
     def process(self):  
         db = connect(self.ase_database_path)    
@@ -165,11 +165,11 @@ class AdsorptionGraphDataset(InMemoryDataset):
         dataset = []
         for graph in data_list:
             if graph != None:
-                is_duplicate, iso_idx = self.is_duplicate(graph, dataset)
+                is_duplicate, _ = self.is_duplicate(graph, dataset)
                 if not is_duplicate:
                     dataset.append(graph)
                 # else:
-                #     self.duplicates.append((graph, dataset[iso_idx]))  # for testing purposes
+                #     self.duplicates.append((graph, dataset[_]))  # for testing purposes
 
             else:
                 continue
@@ -223,7 +223,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
                     target: str = "scaled_energy",
                     adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> Optional[Data]:
         """
-        Generate PyG Data object from ASE database row.
+        Generate PyG graph from ASE database row.
         Used for multiprocessing.
 
         Args:
@@ -302,12 +302,11 @@ def atoms_to_data(structure: Union[Atoms, str],
                   model_elems: list[str], 
                   calc_type: str='adsorption') -> Data:
     """
-    Convert ASE atoms object to PyG Data object based on the graph parameters.
-    The implementation is similar to the one in the ASE to PyG converter class, but it is not a class method and 
-    is used for inference. Target values are not included in the Data object.
+    Convert ASE objects to PyG graphs for inference purposes
+    (target values are not included in the Data object).
 
     Args:
-        structure (Atoms): ASE atoms object or file to POSCAR/CONTCAR file.
+        structure (Atoms): ASE atoms object or POSCAR/CONTCAR file.
         graph_params (dict): Dictionary containing the information for the graph generation in the format:
                             {"tolerance": float, "scaling_factor": float, "metal_hops": int, "second_order_nn": bool}
         model_elems (list): List of chemical elements that can be processed by the model.

@@ -9,7 +9,6 @@ import torch
 import toml
 from torch_geometric.seed import seed_everything
 from torch_geometric.loader import DataLoader
-seed_everything(42)
 from torch import load
 
 from gamenet_uq.training import scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
@@ -18,12 +17,9 @@ from gamenet_uq.post_training import create_model_report
 from gamenet_uq.dataset import AdsorptionGraphDataset
 
 # nondeterministic locks
-# import os
-# os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
-
-# torch.backends.cudnn.deterministic = True 
+# os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"  # or '4096:8'
+torch.backends.cudnn.deterministic = True 
 # torch.use_deterministic_algorithms(True, warn_only=True)
-
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
@@ -86,8 +82,7 @@ if __name__ == "__main__":
 
     for i, (TS, GCN, SURF) in enumerate(feature_combinations):
         for j in range(ARGS.nruns):
-            torch.manual_seed(42)
-            
+            seed_everything(42)            
             if os.path.exists(os.path.join(ARGS.o, "TS_{}_GCN_{}_SURF2HOPS_{}_{}".format(TS, GCN, SURF, j+1))):
                 print("TS={}, GCN={}, SURF={}, RUN={} already exists. Skip.".format(TS, GCN, SURF, j+1))
                 continue
@@ -181,7 +176,8 @@ if __name__ == "__main__":
                                     ohe_elements, 
                                     device_dict, 
                                     parameter_changes, 
-                                    (train_std, val_std, test_std))
+                                    (train_std, val_std, test_std), 
+                                    save_loaders=False)
             except:
                 print("Error in training. Break training and go to the next run.")
-                break
+                continue

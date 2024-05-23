@@ -28,7 +28,8 @@ def create_model_report(model_name: str,
                         one_hot_encoder_elements, 
                         device: dict=None, 
                         params_changes: dict=None, 
-                        std_lists: tuple[list]=None,):
+                        std_lists: tuple[list]=None,
+                        save_loaders: bool=True):
     """Create full report of the performed GNN training.
 
     Args:
@@ -149,8 +150,9 @@ def create_model_report(model_name: str,
     lr_list = mae_lists[3]
 
     # 9) Save dataloaders for future use
-    torch.save(train_loader, "{}/{}/train_loader.pth".format(model_path, model_name))
-    torch.save(val_loader, "{}/{}/val_loader.pth".format(model_path, model_name))
+    if save_loaders:
+        torch.save(train_loader, "{}/{}/train_loader.pth".format(model_path, model_name))
+        torch.save(val_loader, "{}/{}/val_loader.pth".format(model_path, model_name))
     
     # 10) Save model architecture and parameters
     torch.save(model, "{}/{}/model.pth".format(model_path, model_name))             # Save model architecture
@@ -207,7 +209,8 @@ def create_model_report(model_name: str,
         return "Model saved in {}/{}".format(model_path, model_name)
     
     # 13) Get info from test set if it has been monitored
-    torch.save(test_loader, "{}/{}/test_loader.pth".format(model_path, model_name))
+    if save_loaders:
+        torch.save(test_loader, "{}/{}/test_loader.pth".format(model_path, model_name))
     test_label_list = [graph.formula for graph in test_loader.dataset]
     test_facet_list = [graph.facet for graph in test_loader.dataset]
     test_bb_list = [graph.bb_type for graph in test_loader.dataset]
