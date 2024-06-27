@@ -2,7 +2,7 @@
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./GNN_github.png" width="60%" height="60%" />
+     <img src="./GNN_github.png" width="90%" height="90%" />
     </p>
 </div>
 
