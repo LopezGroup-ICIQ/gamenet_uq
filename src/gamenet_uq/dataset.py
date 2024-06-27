@@ -140,7 +140,8 @@ class AdsorptionGraphDataset(InMemoryDataset):
         return self.output_path
     
     def download(self):
-        download_url(self.URL, self.root)  # download ase database from Zenodo if not available
+        # download_url(self.URL, self.root)  # download ase database from Zenodo if not available
+        pass
     
     def process(self):  
         db = connect(self.ase_database_path)    
@@ -260,6 +261,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         graph.metal = row.get("metal")
         graph.facet = row.get("facet")
         graph.inchikey = row.get("inchikey")
+        graph.path = row.get("path")
         if bb_idxs != None:
             bb_type = [atoms[bb_idxs[0]].symbol, atoms[bb_idxs[1]].symbol]
             graph.bb_type = "-".join(sorted(bb_type))        
@@ -270,6 +272,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         else: 
             graph.bb_type = 'None'
             graph.img_freqs = "None" 
+        graph.note = row.note
         graph.calc_path = row.get("calc_path")
         graph.node_feats = list(ohe_elements.categories_[0])
         graph.edge_feats = ["ts"]

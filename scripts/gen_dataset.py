@@ -3,10 +3,10 @@ sys.path.append('../src')
 
 from gamenet_uq.dataset import AdsorptionGraphDataset
 
-ASE_DB_PATH = "../data/fg.db"
+ASE_DB_PATH = "../data/fg_TEST.db"
 GRAPH_DATASET_PATH = "../data"
 STRUCTURE_DICT = {"tolerance": 0.25, "scaling_factor": 1.25, "second_order": True}
-FEATURES_DICT = {"adsorbate": False, "radical": False, "valence": False, "gcn": False, "magnetization": False}
+FEATURES_DICT = {"adsorbate": False, "radical": False, "valence": False, "gcn": True, "magnetization": False}
 GRAPH_PARAMS = {"structure": STRUCTURE_DICT, "features": FEATURES_DICT, "target": "scaled_energy"}
 DB_KEY = ''
 

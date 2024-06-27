@@ -17,9 +17,9 @@ magnetization = false	# Spin polarization feature (graph level)
 
 [train]
 splits = 5                  # Initial splits of the starting dataset for train/val/test sets creation (int)
-test_set = true             # Whether generate test set or just split among train/val (true/false)
+test_set = true         # Whether generate test set or just split among train/val (true/false)
 batch_size = 32         # Batch size (int)
-epochs = 200             # Total number of epochs (int)
+epochs = 250             # Total number of epochs (int)
 target_scaling = "std"      # Target scaling approach ("std" only available for now) ("std")
 loss_function = "mae"       # Loss function ("mae"/"mse"/"huber") 
 lr0 = 1e-3                  # Initial learning rate (float)
@@ -36,7 +36,7 @@ num_ensembles = 1           # Number of ensembles (int). Needed only when traini
 
 
 [architecture]
-dim = 256                 # Layers' width (int)
+dim = 192                   # Layers' width (int)
 sigma = "ReLU"              # Activation function ("ReLU"/"tanh")
 bias = false                # Whether allowing bias in all layer formulas (true/false)
 num_linear = 0                # Number of dense layers at the beginning of the model (int)
@@ -45,6 +45,6 @@ pool_heads = 1              # Number of multihead attention blocks in the poolin
 
 
 [data]
-ase_database_path = "/home/smorandi/fats/data/ts.db"  # path to ase database 
-graph_dataset_path = "/home/smorandi/fats/data/"              # path to graph dataset directory
+ase_database_path = "/home/smorandi/gamenet_uq/data/fg.db"  # path to ase database 
+graph_dataset_path = "/home/smorandi/gamenet_uq/data/"              # path to graph dataset directory
 ase_database_key = ""            # key of the ase database
