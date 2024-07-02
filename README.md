@@ -24,15 +24,16 @@ The graph dataset (92 MB) can be automatically generated from the ASE database w
 
 To train the model, run the script `scripts/train_mve.py -i config.toml -o OUTDIR`. The `TEMPLATE.toml` file provides an explanation for each entry required in the training configuration file.
 
+## Pretrained model
+
+The final pretrained model is available within CARE ([link](https://github.com/LopezGroup-ICIQ/care)). 
+
 ## License
 
-The code is publicly available under the MIT license.
+The code is released under the [MIT](./LICENSE) license.
 
-## References
+## Reference
 
-Please cite this if you are going to use the code in your work:
-
-```bib
-article{...
-}
-```
+- **A Foundational Model for Reaction Networks on Metal Surfaces**  
+  Authors: S. Morandi, O. Loveday, T. Renningholtz, S. Pablo-García, R. A. Vargas Hernáńdez, R. R. Seemakurthi, P. Sanz Berman, R. García-Muelas, A. Aspuru-Guzik, and N. López  
+  DOI: [10.26434/chemrxiv-2024-bfv3d](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
