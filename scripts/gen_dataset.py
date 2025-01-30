@@ -3,6 +3,7 @@ Script to generate adsorption graph dataset from ASE database.
 """
 
 import argparse
+import os
 import sys
 sys.path.append('../src')
 
@@ -29,9 +30,9 @@ def main():
                                      graph_params=GRAPH_PARAMS, 
                                      db_key=args.db_key, 
                                      ncores=args.cores)
-    print("Dataset generated successfully. Stored in {}".format(args.graph_dataset_path))
+    print("Dataset generated successfully. Stored as {}".format(os.path.abspath(dataset.output_path)))
     print("Graph dataset size: {}".format(len(dataset)))
 
-    
+
 if __name__ == "__main__":
     main()
