@@ -20,9 +20,13 @@ The DFT dataset `fg.db` (217 MB) used to train the GNN will be soon uploaded to 
 
 The graph dataset (92 MB) can be automatically generated from the ASE database with the script [gen_dataset.py](./scripts/gen_dataset.py). The same script can be used to generate your custom dataset from external ASE databases.  
 
-## Model training
+## Model training and finetuning
 
-To train the model, run the script `scripts/train_mve.py -i config.toml -o OUTDIR`. The `TEMPLATE.toml` file provides an explanation for each entry required in the training configuration file.
+To train the model, run the script [train_mve.py](./scripts/train_mve.py). The [input template ](./scripts/input.toml) file provides an explanation for each entry required in the training configuration file.
+
+```bash
+python train_mve.py -i input.toml -o output_dirname
+```
 
 ## Pretrained model
 
