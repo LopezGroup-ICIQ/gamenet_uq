@@ -16,9 +16,9 @@ We will soon provide a .yml file from which generate the conda environment neede
 
 The DFT dataset `fg.db` (217 MB) used to train the GNN will be soon uploaded to Zenodo as ASE database including the DFT VASP relaxed geometries, simulation settings, and other metadata. 
 
-## Graph dataset
+## Graph dataset generation from ASE databases
 
-The graph dataset (92 MB) can be automatically generated from the ASE database with the script `scripts/gen_dataset.py`. 
+The graph dataset (92 MB) can be automatically generated from the ASE database with the script [gen_dataset.py](./scripts/gen_dataset.py). The same script can be used to generate your custom dataset from external ASE databases.  
 
 ## Model training
 
