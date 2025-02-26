@@ -90,12 +90,12 @@ class GameNetUQ(torch.nn.Module):
     def __init__(self, 
                  node_features: int,               
                  dim: int,                  
-                 num_linear: int=0,
-                 num_conv: int=3,
-                 bias: bool=False,
-                 conv=SAGEConv, 
-                 pool_heads: int=1, 
-                 seed: int=None):
+                 num_linear: int = 0,
+                 num_conv: int = 3,
+                 bias: bool = False,
+                 conv = SAGEConv, 
+                 pool_heads: int = 1, 
+                 seed: int = None):
         """
 
         Args:
@@ -153,15 +153,17 @@ class GameNetUQ_ablation(torch.nn.Module):
     def __init__(self, 
                  node_features: int,               
                  dim: int,                  
-                 num_linear: int=0,
-                 num_conv: int=3,
-                 bias: bool=False,
-                 conv=SAGEConv, 
-                 pool_heads: int=1, 
-                 ts_layer: bool=True, 
-                 gcn:bool=True, 
-                 seed: int=None):
+                 num_linear: int = 0,
+                 num_conv: int = 3,
+                 bias: bool = False,
+                 conv = SAGEConv, 
+                 pool_heads: int = 1, 
+                 ts_layer: bool = True, 
+                 gcn:bool = True, 
+                 uq: bool = True,
+                 seed: int = None):
         """
+        GAME-Net-UQ model class for ablation study.
 
         Args:
             num_in_features (int, optional): Input graph node dimensionality. Default to NODE_FEATURES.
@@ -172,6 +174,9 @@ class GameNetUQ_ablation(torch.nn.Module):
             bias (bool, optional): Bias inclusion. Default to True.
             conv (_type_, optional): Convolutional Layer. Default to SAGEConv.
             pool (_type_, optional): Pooling Layer. Default to GraphMultisetTransformer.
+            ts_layer (bool, optional): Include TAGConv layer. Default to True.
+            gcn (bool, optional): If True, include this node feature in the model, else not.
+            uq (bool, optional): If True, model outputs a Normal distribution, else a point estimate (no uq).
         """
         super(GameNetUQ_ablation, self).__init__()
         if seed is not None and type(seed) == int:
@@ -183,13 +188,15 @@ class GameNetUQ_ablation(torch.nn.Module):
         self.conv_block = torch.nn.ModuleList([conv(dim, dim, bias=bias) for _ in range(num_conv)])
         self.ts_layer = TAGConv(dim, dim, bias=bias, normalize=False, K=3)
         self.lin_a = Linear(dim, dim, bias=bias) 
-        self.lin_b = Linear(dim, 2, bias=bias)  
         self.pma = PMA(channels = dim, 
                        num_heads = pool_heads, 
                        num_seeds = 1, 
                        bias = bias)
         self.gcn = gcn
         self.ts = ts_layer
+        self.uq = uq
+        self.out_dim = 2 if uq else 1
+        self.lin_b = Linear(dim, self.out_dim, bias=bias)  
         
     def forward(self, data):
         #---------------------------------#
@@ -217,4 +224,7 @@ class GameNetUQ_ablation(torch.nn.Module):
         mask = (~mask).unsqueeze(1).to(dtype=out.dtype) * -1e9
         out = self.pma(x=batch_x, mask=mask)
         out = self.lin_b(out.squeeze(1))
-        return Normal(out[:, 0], Softplus()(out[:, 1]))
+        if self.uq:
+            return Normal(out[:, 0], Softplus()(out[:, 1]))
+        else:
+            return Normal(out[:, 0], 1.0)
