@@ -278,7 +278,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         graph.edge_feats = ["ts"]
         graph.e_mol = row.get("e_mol")
         graph.has_ring = is_ring(graph, adsorbate_elements)  # adsorbate with ring
-        for filter in [adsorption_filter, H_filter, C_filter, fragment_filter]:
+        for filter in [H_filter, C_filter, fragment_filter]:
             if not filter(graph, adsorbate_elements):
                 return None 
         
@@ -303,7 +303,8 @@ class AdsorptionGraphDataset(InMemoryDataset):
 def atoms_to_data(structure: Union[Atoms, str], 
                   graph_params: dict[str, Union[float, int, bool]], 
                   model_elems: list[str], 
-                  calc_type: str='adsorption') -> Data:
+                  calc_type: str='int', 
+                  adsorbate_elements = ["C", "H", "O", "N", "S"]) -> Data:
     """
     Convert ASE objects to PyG graphs for inference purposes
     (target values are not included in the Data object).
@@ -333,7 +334,6 @@ def atoms_to_data(structure: Union[Atoms, str],
     formula = structure.get_chemical_formula()
 
     # Construct one-hot encoder for elements
-    adsorbate_elements = ["C", "H", "O", "N", "S"]  # hard-coded for now
     ohe_elements = OneHotEncoder().fit(np.array(model_elems).reshape(-1, 1)) 
     elements_list = list(ohe_elements.categories_[0])
     node_features_list = list(ohe_elements.categories_[0]) 
@@ -341,56 +341,29 @@ def atoms_to_data(structure: Union[Atoms, str],
     for key, value in graph_features_params.items():
         if value:
             node_features_list.append(key.upper())
-    adsorbate_elements_indices = [elements_list.index(element) for element in adsorbate_elements]
-    graph, surface_neighbours = atoms_to_pyg(structure, 
-                                                  graph_structure_params["tolerance"], 
-                                                  graph_structure_params["scaling_factor"],
-                                                  graph_structure_params["second_order_nn"], 
-                                                  ohe_elements, 
-                                                  adsorbate_elements)
-    graph.type = calc_type
-    if not adsorption_filter(graph, ohe_elements, adsorbate_elements):
-        raise ValueError("Adsorption filter failed for {}".format(formula))
-    if not H_filter(graph, ohe_elements, adsorbate_elements):
-        raise ValueError("H connectivity filter failed for {}".format(formula))
-    if not C_filter(graph, ohe_elements, adsorbate_elements):
-        raise ValueError("C connectivity filter failed for {}".format(formula))
-    if not fragment_filter(graph, ohe_elements, adsorbate_elements):
-        raise ValueError("Single fragment filter failed for {}".format(formula))
-    # node featurization
-    if graph_features_params["adsorbate"]:
-        x_adsorbate = zeros((graph.x.shape[0], 1))  # 1=adsorbate, 0=metal
-        for i, node in enumerate(graph.x):
-            index = where(node == 1)[0][0].item()
-            x_adsorbate[i, 0] = 1 if index in adsorbate_elements_indices else 0
-        graph.x = cat((graph.x, x_adsorbate), dim=1)
-    if graph_features_params["radical"]:
-        x_radical = torch.zeros((graph.x.shape[0], 1))  # 1=radical, 0=no radical/ metal
-        radical_atoms = get_radical_atoms(structure, adsorbate_elements)
-        for index, node in enumerate(graph.x):
-            if index in radical_atoms:
-                x_radical[index, 0] = 1
-        graph.x = torch.cat((graph.x, x_radical), dim=1)
-    if graph_features_params["valence"]:                
-        try:
-            x_valence = torch.zeros((graph.x.shape[0], 1))
-            scaled_degree_vector = get_atom_valence(structure, adsorbate_elements)
-            for index, node in enumerate(scaled_degree_vector):
-                x_valence[index, 0] = scaled_degree_vector[index, 0]
-            graph.x = torch.cat((graph.x, x_valence), dim=1)
-        except:
-            raise ValueError("{}: Error in valence detection.".format(formula))               
-    if graph_features_params["gcn"]:
-        x_generalized_coordination_number = torch.zeros((graph.x.shape[0], 1))
-        cn = get_gcn(structure, adsorbate_elements)
-        counter = 0
-        for i, node in enumerate(graph.x):
-            index = where(node == 1)[0][0].item()
-            if index not in adsorbate_elements_indices:
-                x_generalized_coordination_number[i, 0] = cn[surface_neighbours[counter]][0]
-                counter += 1
-        graph.x = torch.cat((graph.x, x_generalized_coordination_number), dim=1)
-    
+    graph, surf_atoms, _ = atoms_to_pyg(structure, 
+                                        calc_type,
+                                        graph_structure_params["tolerance"], 
+                                        graph_structure_params["scaling_factor"],
+                                        graph_structure_params["second_order_nn"], 
+                                        ohe_elements, 
+                                        adsorbate_elements)
+    graph.type = calc_type    
     graph.formula = formula
     graph.node_feats = node_features_list
+    # node featurization
+    if graph_features_params["adsorbate"]:
+        graph = adsorbate_node_featurizer(graph, adsorbate_elements)
+    if graph_features_params["radical"]:
+        graph = get_radical_atoms(graph, adsorbate_elements)
+    if graph_features_params["valence"]:
+        graph = get_atom_valence(graph, adsorbate_elements)
+    if graph_features_params["gcn"]:
+        graph = get_gcn(graph, structure, adsorbate_elements, surf_atoms)
+    if graph_features_params["magnetization"]:
+        graph = get_magnetization(graph)
+
+    for filter in [H_filter, C_filter, fragment_filter]:
+        if not filter(graph, adsorbate_elements):
+            return None 
     return graph

@@ -1,5 +1,5 @@
 """
-Node featuruzation for PyG
+Functions to featurize atomic nodes in adsorption graphs.
 """
 
 from ase import Atoms
@@ -23,10 +23,11 @@ def get_magnetization(graph: Data) -> Data:
     Returns:
         Data: PyG Data object with the magnetization as a node feature. Data.x.shape[1] increases by 1.
     """
-    if graph.metal in ("Fe", "Co", "Ni"):
-        graph.x = torch.cat((graph.x, torch.ones((graph.x.shape[0], 1))), dim=1)
-    else:
-        graph.x = torch.cat((graph.x, torch.zeros((graph.x.shape[0], 1))), dim=1)
+    x_magnetization = torch.zeros((graph.x.shape[0], 1))
+    for i in range(graph.num_nodes):
+        x_magnetization[i, 0] = 1 if graph.elem[i] in ("Fe", "Co", "Ni") else 0
+    graph.x = torch.cat((graph.x, x_magnetization), dim=1)
+    graph.node_feats.append("magnetization")
     return graph
 
 def adsorbate_node_featurizer(graph: Data, 
@@ -41,6 +42,7 @@ def adsorbate_node_featurizer(graph: Data,
     for i in range(graph.x.shape[0]):
         x_adsorbate[i, 0] = 1 if graph.elem[i] in adsorbate_elements else 0
     graph.x = torch.cat((graph.x, x_adsorbate), dim=1)
+    graph.node_feats.append("adsorbate")
     return graph
 
 def get_gcn(graph: Data, 
@@ -64,7 +66,7 @@ def get_gcn(graph: Data,
         Data: PyG Data object with the gcn as a node feature. Data.x.shape[1] increases by 1.
                 Data.node_feats is also updated.
     """
-    if graph.metal == "N/A" and graph.facet == "N/A":
+    if all([elem in adsorbate_elements for elem in graph.elem]):
         graph.x = torch.cat((graph.x, torch.zeros((graph.x.shape[0], 1))), dim=1)
         graph.node_feats.append("gcn")
         return graph

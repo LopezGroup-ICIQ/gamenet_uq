@@ -1,4 +1,17 @@
-"""Perform GNN model training with uncertainty quantification."""
+"""Perform ablation study on GAME-Net-UQ for the following features:
+
+- generalized coordination number of surface atom nodes in the graph.
+- TAG layer to use information encoded in graph edges for labeling bond involved in 
+  the transition state of the bond-breaking surface reaction.
+- Presence of surface atoms' 2-hop metal neighbours in the graph
+- Uncertainty quantification of the model predictions.
+
+The script expects to provide a path to a directory with the following structure:
+- input.toml: a TOML file with hyperparameters for the training process.
+- dataloaders: a folder with PyTorch DataLoader objects for train, val, and test sets.
+- models: A folder where the trained models will be saved.
+
+"""
 
 from copy import deepcopy
 from itertools import product
@@ -16,33 +29,40 @@ from gamenet_uq.nets import GameNetUQ_ablation
 from gamenet_uq.post_training import create_model_report
 from gamenet_uq.dataset import AdsorptionGraphDataset
 
-# nondeterministic locks
-# os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"  # or '4096:8'
 torch.backends.cudnn.deterministic = True 
-# torch.use_deterministic_algorithms(True, warn_only=True)
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
-    PARSER.add_argument("-i", "--input", type=str, dest="i", 
-                        help="Input toml file with hyperparameters for the learning process.")
+    PARSER.add_argument("-i", "--input-dir", type=str, dest="i", 
+                        help="Path to directory containing input.toml file with hyperparameters and dataloaders folder with train, val, and test sets.")
     PARSER.add_argument("-nruns", "--nruns", type=int, dest="nruns", 
-                        help="Number of runs for each combinations of features.")
-    PARSER.add_argument("-o", "--output", type=str, dest="o", 
-                        help="Output directory for the results.")
+                        help="Number of training runs for each combination of ablated features.")
+    PARSER.add_argument("--ablated_features", type=str, nargs="+", dest="ablated_features", choices=["TS", "GCN", "SURF2HOPS", "UQ"],
+                        help="Features to ablate: TS, GCN, SURF2HOPS, UQ")
     ARGS = PARSER.parse_args()
+    
+    GCN_OPTIONS = [True]
+    TS_OPTIONS = [True]
+    SURF_2HOP_OPTIONS = [True]
+    UQ_OPTIONS = [True]
+    if "TS" in ARGS.ablated_features:
+        TS_OPTIONS.append(False)
+    if "GCN" in ARGS.ablated_features:
+        GCN_OPTIONS.append(False)
+    if "SURF2HOPS" in ARGS.ablated_features:
+        SURF_2HOP_OPTIONS.append(False)
+    if "UQ" in ARGS.ablated_features:
+        UQ_OPTIONS.append(False)
+    feature_combinations = list(product(TS_OPTIONS, GCN_OPTIONS, SURF_2HOP_OPTIONS, UQ_OPTIONS))
+    number_of_trainings = len(feature_combinations) * ARGS.nruns
+    print("Number of trainings in this ablation experiment: {}".format(number_of_trainings))
 
-    GCN_OPTIONS = [True, False]
-    TS_OPTIONS = [True, False]
-    SURF_2HOP = [True, False]    
-    feature_combinations = list(product(TS_OPTIONS, GCN_OPTIONS, SURF_2HOP))
-
-    hyperparameters = toml.load(ARGS.i)  
+    hyperparameters = toml.load(os.path.join(ARGS.i, "input.toml"))  
     ase_database_path = hyperparameters["data"]["ase_database_path"]
     graph_dataset_dir = hyperparameters["data"]["graph_dataset_path"]
     graph_settings = hyperparameters["graph"]
     train = hyperparameters["train"]
     architecture = hyperparameters["architecture"]        
-    # Select device
     device_dict = {}
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cuda":
@@ -62,17 +82,17 @@ if __name__ == "__main__":
                                     '')
     ohe_elements = dataset.ohe_elements
 
-    train_loader_ttt = load("../trainings/DATALAODERS/train_loader.pth")
-    val_loader_ttt = load("../trainings/DATALAODERS/val_loader.pth")
-    test_loader_ttt = load("../trainings/DATALAODERS/test_loader.pth")
+    train_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "train_loader.pth"))
+    val_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "val_loader.pth"))
+    test_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "test_loader.pth"))
     train_datalist_ttt = train_loader_ttt.dataset
     val_datalist_ttt = val_loader_ttt.dataset
     test_datalist_ttt = test_loader_ttt.dataset
 
     # No 2-hop metal neighbours
-    train_loader_ttf = load("../trainings/DATALAODERS/train_loader_ttf.pth")
-    val_loader_ttf = load("../trainings/DATALAODERS/val_loader_ttf.pth")
-    test_loader_ttf = load("../trainings/DATALAODERS/test_loader_ttf.pth")
+    train_loader_ttf = load(os.path.join(ARGS.i, "dataloaders", "train_loader_ttf.pth"))
+    val_loader_ttf = load(os.path.join(ARGS.i, "dataloaders", "val_loader_ttf.pth"))
+    test_loader_ttf = load(os.path.join(ARGS.i, "dataloaders", "test_loader_ttf.pth"))
     train_datalist_ttf = train_loader_ttf.dataset
     val_datalist_ttf = val_loader_ttf.dataset
     test_datalist_ttf = test_loader_ttf.dataset
@@ -80,14 +100,15 @@ if __name__ == "__main__":
     for i in range(len(train_datalist_ttt)):
         assert train_datalist_ttt[i].formula == train_datalist_ttf[i].formula
 
-    for i, (TS, GCN, SURF) in enumerate(feature_combinations):
+    for i, (TS, GCN, SURF, UQ) in enumerate(feature_combinations):
         for j in range(ARGS.nruns):
             seed_everything(42)            
-            if os.path.exists(os.path.join(ARGS.o, "TS_{}_GCN_{}_SURF2HOPS_{}_{}".format(TS, GCN, SURF, j+1))):
-                print("TS={}, GCN={}, SURF={}, RUN={} already exists. Skip.".format(TS, GCN, SURF, j+1))
+            MODEL_NAME = "TS_{}_GCN_{}_SURF2HOPS_{}_UQ_{}_{}".format(TS, GCN, SURF, UQ, j+1)
+            if os.path.exists(os.path.join(ARGS.i, "models", MODEL_NAME)):
+                print("TS={}, GCN={}, SURF={}, UQ={}, RUN={} already exists. Skip.".format(TS, GCN, SURF, UQ, j+1))
                 continue
 
-            print("Run {} of {} for TS={}, GCN={}, SURF={}".format(j+1, ARGS.nruns, TS, GCN, SURF))
+            print("Run {} of {} for TS={}, GCN={}, SURF={}, UQ={}".format((i+1)*(j+1), number_of_trainings, TS, GCN, SURF, UQ))
             if SURF:
                 train_datalist = deepcopy(train_datalist_ttt)
                 val_datalist = deepcopy(val_datalist_ttt)
@@ -109,29 +130,26 @@ if __name__ == "__main__":
                                                                             test_loader, 
                                                                             mode=train["target_scaling"], 
                                                                             test=train["test_set"])    
-            
             model = GameNetUQ_ablation(node_features=NODE_DIM,              
                             dim=architecture["dim"],
                             num_linear=architecture["num_linear"], 
                             num_conv=architecture["num_conv"],    
                             bias=architecture["bias"], 
                             ts_layer=TS, 
-                            gcn=GCN, 
+                            gcn=GCN,
+                            uq=UQ,
                             seed=42).to(device)
             initial_params = {name: p.clone() for name, p in model.named_parameters()}
-
             optimizer = torch.optim.Adam(model.parameters(),
                                         lr=train["lr0"],
                                         eps=train["eps"], 
                                         weight_decay=train["weight_decay"],
                                         amsgrad=train["amsgrad"])
-            
             lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                     mode='min',
                                                                     factor=train["factor"],
                                                                     patience=train["patience"],
                                                                     min_lr=train["minlr"])  
-            
             loss_list, train_list, val_list, test_list, lr_list = [], [], [], [], []
             train_std, val_std, test_std = [], [], [] 
             try:
@@ -166,8 +184,8 @@ if __name__ == "__main__":
                 training_time = (time.time() - t0) / 60.0  
                 print("Training time: {:.2f} min".format(training_time))
                 device_dict["training_time"] = training_time
-                create_model_report("TS_{}_GCN_{}_SURF2HOPS_{}_{}".format(TS, GCN, SURF, j+1),
-                                    ARGS.o,
+                create_model_report(MODEL_NAME,
+                                    os.path.join(ARGS.o, "models"),
                                     hyperparameters,  
                                     model, 
                                     (train_loader, val_loader, test_loader),
