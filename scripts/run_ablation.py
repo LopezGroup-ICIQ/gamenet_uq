@@ -2,13 +2,14 @@
 
 - generalized coordination number of surface atom nodes in the graph.
 - TAG layer to use information encoded in graph edges for labeling bond involved in 
-  the transition state of the bond-breaking surface reaction.
+  the transition state (TS) of the bond-breaking surface reaction.
 - Presence of surface atoms' 2-hop metal neighbours in the graph
 - Uncertainty quantification of the model predictions.
 
 The script expects to provide a path to a directory with the following structure:
 - input.toml: a TOML file with hyperparameters for the training process.
-- dataloaders: a folder with PyTorch DataLoader objects for train, val, and test sets.
+- dataloaders: a folder with PyTorch DataLoader objects for train, val, and test sets. 
+    Stored graphs must have the original GAME-Net-UQ features: 2hop adsorbate neighbours, gcn node features, and TS labels.
 - models: A folder where the trained models will be saved.
 
 """
@@ -28,6 +29,7 @@ from gamenet_uq.training import scale_target, train_loop, test_loop, nll_loss, n
 from gamenet_uq.nets import GameNetUQ_ablation
 from gamenet_uq.post_training import create_model_report
 from gamenet_uq.dataset import AdsorptionGraphDataset
+from gamenet_uq.graph_tools import remove_2hop_metal_nodes
 
 torch.backends.cudnn.deterministic = True 
 
@@ -89,16 +91,13 @@ if __name__ == "__main__":
     val_datalist_ttt = val_loader_ttt.dataset
     test_datalist_ttt = test_loader_ttt.dataset
 
-    # No 2-hop metal neighbours
-    train_loader_ttf = load(os.path.join(ARGS.i, "dataloaders", "train_loader_ttf.pth"))
-    val_loader_ttf = load(os.path.join(ARGS.i, "dataloaders", "val_loader_ttf.pth"))
-    test_loader_ttf = load(os.path.join(ARGS.i, "dataloaders", "test_loader_ttf.pth"))
-    train_datalist_ttf = train_loader_ttf.dataset
-    val_datalist_ttf = val_loader_ttf.dataset
-    test_datalist_ttf = test_loader_ttf.dataset
-    
-    for i in range(len(train_datalist_ttt)):
-        assert train_datalist_ttt[i].formula == train_datalist_ttf[i].formula
+    if False in SURF_2HOP_OPTIONS:
+        # Create dataloaders with graphs without 2-hop adsorbate neighbours
+        train_data_no2hop = [remove_2hop_metal_nodes(data) for data in train_datalist_ttt]    
+        val_data_no2hop = [remove_2hop_metal_nodes(data) for data in val_datalist_ttt]
+        test_data_no2hop = [remove_2hop_metal_nodes(data) for data in test_datalist_ttt]
+        for i in range(len(train_datalist_ttt)):
+            assert train_datalist_ttt[i].formula == train_data_no2hop[i].formula
 
     for i, (TS, GCN, SURF, UQ) in enumerate(feature_combinations):
         for j in range(ARGS.nruns):
@@ -109,14 +108,14 @@ if __name__ == "__main__":
                 continue
 
             print("Run {} of {} for TS={}, GCN={}, SURF={}, UQ={}".format((i+1)*(j+1), number_of_trainings, TS, GCN, SURF, UQ))
-            if SURF:
+            if SURF == True:
                 train_datalist = deepcopy(train_datalist_ttt)
                 val_datalist = deepcopy(val_datalist_ttt)
                 test_datalist = deepcopy(test_datalist_ttt)
             else:
-                train_datalist = deepcopy(train_datalist_ttf)
-                val_datalist = deepcopy(val_datalist_ttf)
-                test_datalist = deepcopy(test_datalist_ttf)
+                train_datalist = deepcopy(train_data_no2hop)
+                val_datalist = deepcopy(val_data_no2hop)
+                test_datalist = deepcopy(test_data_no2hop)
 
             # if num_workers > 0, nondeterministic behavior occurs!
             train_loader = DataLoader(train_datalist, batch_size=train["batch_size"], shuffle=True)

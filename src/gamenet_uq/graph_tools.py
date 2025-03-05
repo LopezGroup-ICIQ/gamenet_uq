@@ -1,6 +1,5 @@
 """Functions for graphs handling and visualization purposes."""
 
-import numpy as np
 from networkx import Graph, get_node_attributes, kamada_kawai_layout, draw_networkx
 import torch
 import torch_geometric
@@ -124,3 +123,44 @@ def graph_plotter(graph: Data,
     # Remove frame
     plt.axis('off')
     plt.draw()
+
+def remove_2hop_metal_nodes(graph: Data, 
+                            adsorbate_elements: list[str] = ["C", "H", "O", "N", "S"]) -> Data:
+    """
+    Remove surface atoms that are not connected to the adsorbate in the graph.
+    Attributes required for the graph are:
+    - elem: List of element symbols for each node
+    - edge_index: List of edges in the graph (2 x num_edges)
+    - metal: Symbol of the metal atom in the graph ('N/A' if no metal is present)
+
+    :param graph: Data object containing the graph
+    :return: Data object with the metal atoms removed
+    """
+    adsorbate_idxs, surface_idxs = [], []
+    for i, elem in enumerate(graph.elem):
+        if elem in adsorbate_elements:
+            adsorbate_idxs.append(i)
+        else:
+            surface_idxs.append(i)
+
+    if len(surface_idxs) == 0:
+        return graph
+
+    idxs_to_remove = []
+    for i in surface_idxs:
+        as_edges = []
+        for j in range(graph.edge_index.shape[1]):
+            if i in graph.edge_index[:, j]:
+                other = graph.edge_index[:, j][0] if graph.edge_index[:, j][0] != i else graph.edge_index[:, j][1]
+                if other in adsorbate_idxs:
+                    as_edges.append(j)
+        if len(as_edges) == 0:
+            idxs_to_remove.append(i)
+    if len(idxs_to_remove) > 0:
+        nodes_to_keep = [i for i in range(len(graph.elem)) if i not in idxs_to_remove]
+        new_graph = graph.subgraph(torch.tensor(nodes_to_keep))
+        new_elem = [graph.elem[i] for i in range(len(graph.elem)) if i not in idxs_to_remove]
+        new_graph.elem = new_elem
+        return new_graph
+    else:
+        return graph
