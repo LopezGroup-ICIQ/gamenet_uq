@@ -12,16 +12,13 @@ import toml
 from torch_geometric.seed import seed_everything
 seed_everything(42)
 import numpy as np
-from torch import load
 from numpy import random
-# from torch_geometric.loader import DataLoader
 
 from gamenet_uq.training import create_loaders, scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
 from gamenet_uq.classes import EarlyStopper
 from gamenet_uq.nets import GameNetUQ
 from gamenet_uq.post_training import create_model_report
 from gamenet_uq.dataset import AdsorptionGraphDataset
-# from gamenet_uq.functions import get_mean_std_from_model
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
@@ -63,6 +60,7 @@ if __name__ == "__main__":
                                      '')
     ohe_elements = dataset.ohe_elements
     node_feature_list = dataset.node_feature_list
+    num_node_features = len(node_feature_list)
     dataset = [graph for graph in dataset if graph.has_ring == False]
     random.shuffle(dataset)
 

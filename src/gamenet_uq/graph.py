@@ -40,6 +40,7 @@ def get_voronoi_neighbourlist(atoms: Atoms,
 
     if len(atoms) == 0:
         return np.array([])
+    num_adsorbate_atoms = len([atom for atom in atoms if atom.symbol in adsorbate_elems])
     
     # First necessary condition for two atoms to be linked: Sharing a Voronoi facet
     coords_arr = np.repeat(np.expand_dims(np.copy(atoms.get_scaled_positions()), axis=0), 27, axis=0)
@@ -66,21 +67,25 @@ def get_voronoi_neighbourlist(atoms: Atoms,
 
             if distance <= threshold:
                 pairs.append(pair)
- 
-        c1 = any(
-            atoms[pair[0]].symbol in adsorbate_elems
-            and atoms[pair[1]].symbol not in adsorbate_elems
-            for pair in pairs
-        )
-        c2 = any(
-            atoms[pair[0]].symbol not in adsorbate_elems
-            and atoms[pair[1]].symbol in adsorbate_elems
-            for pair in pairs
-        )
-        if (c1 or c2) or all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms))):
+
+        if num_adsorbate_atoms == 0:
+            pairs = pairs_corr
             break
-        else:
-            increment += 0.2
+        else: 
+            c1 = any(
+                atoms[pair[0]].symbol in adsorbate_elems
+                and atoms[pair[1]].symbol not in adsorbate_elems
+                for pair in pairs
+            )
+            c2 = any(
+                atoms[pair[0]].symbol not in adsorbate_elems
+                and atoms[pair[1]].symbol in adsorbate_elems
+                for pair in pairs
+            )
+            if (c1 or c2) or all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms))):
+                break
+            else:
+                increment += 0.2
 
     return np.sort(np.array(pairs), axis=1)
 
@@ -169,12 +174,12 @@ def atoms_to_nx(atoms: Atoms,
 
 
 def atoms_to_pyg(atoms: Atoms,
-                      calc_type: str,
-                      voronoi_tol: float,
-                      scaling_factor: float,
-                      second_order: bool,
-                      one_hot_encoder: OneHotEncoder, 
-                      adsorbate_elems: list[str]=["C", "H", "O", "N", "S"]) -> Data:
+                calc_type: str,
+                voronoi_tol: float,
+                scaling_factor: float,
+                second_order: bool,
+                one_hot_encoder: OneHotEncoder, 
+                adsorbate_elems: list[str]=["C", "H", "O", "N", "S"]) -> Data:
     """
     Convert ASE Atoms object to PyG Data object, representing the adsorbate-surface system.   
 
@@ -215,7 +220,3 @@ def atoms_to_pyg(atoms: Atoms,
             if nx.edges[edge_tuple]['ts_edge'] == 1:
                 edge_attr[i, 0] = 1  # As the nxgraph is undirected, the edge attribute is repeated twice
     return Data(x, edge_index, edge_attr, elem=elem_list), surface_neighbors, bb_idxs
-
-
-
-

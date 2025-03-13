@@ -6,12 +6,10 @@ import os
 from datetime import date, datetime
 
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import csv
 import torch
 from torch_geometric.loader import DataLoader
-from torch_geometric.nn import summary
 from sklearn.metrics import r2_score
 
 from gamenet_uq.graph_tools import graph_plotter

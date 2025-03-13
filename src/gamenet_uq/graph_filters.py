@@ -1,6 +1,7 @@
 """
-Module containing a set of filter functions for graphs in the Geometric PyTorch format.
-These filters are applied before the inclusion of the graphs in the HetGraphDataset objects.
+Module containing a set of filter functions for adsorption graphs in the Geometric PyTorch format.
+These filters are applied before the inclusion of the graphs in the Dataset.
+These filters work with the graph representation of GAME-Net-UQ only.
 """
 
 import torch
@@ -10,9 +11,11 @@ from torch_geometric.data import Data
 from torch import tensor
 from networkx import is_connected, cycle_basis
 
+from gamenet_uq.constants import ADSORBATE_ELEMS
+
 
 def extract_adsorbate(graph: Data,
-                     adsorbate_elems: list[str]) -> bool:
+                     adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
     """Extract adsorbate from the adsorption graph (adsorbate+surface).
     
     Args:
@@ -32,7 +35,7 @@ def extract_adsorbate(graph: Data,
 
 
 def fragment_filter(graph: Data, 
-                    adsorbate_elems: list[str]) -> bool:
+                    adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
     """Check adsorbate fragmentation in the graph.
     Args:
         graph(Data): Adsorption graph.
@@ -59,8 +62,8 @@ def fragment_filter(graph: Data,
     
 
 def is_ring(graph: Data, 
-            adsorbate_elems) -> bool:
-    """Check if the graph contains a ring."""
+            adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
+    """Check if the adsorbate molecule contains a ring."""
     adsorbate = extract_adsorbate(graph, adsorbate_elems)
     graph_nx = to_networkx(adsorbate, to_undirected=True)
     cycles = list(cycle_basis(graph_nx))
@@ -72,7 +75,7 @@ def is_ring(graph: Data,
 
     
 def H_filter(graph: Data, 
-             adsorbate_elems: list[str]) -> bool:
+             adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
     """
     Graph filter that checks the connectivity of H atoms whithin the adsorbate.
     Each H atoms must be connected to maximum one atom within the adsorbate.
@@ -104,7 +107,7 @@ def H_filter(graph: Data,
     return True
 
 def C_filter(graph: Data, 
-             adsorbate_elems: list[str]) -> bool:
+             adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
     """
     Graph filter that checks the connectivity of C atoms whithin the adsorbate.
     Each C atom must be connected to maximum 4 atoms within the molecule.
@@ -135,7 +138,7 @@ def C_filter(graph: Data,
 
     
 def adsorption_filter(graph: Data,  
-                      adsorbate_elems: list[str]) -> bool:
+                      adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
     """
     Check presence of metal atoms in the adsorption graphs.
     sufficiency condition: if there is at least one atom different from C, H, O, N, S, 
@@ -155,7 +158,7 @@ def adsorption_filter(graph: Data,
     
 
 def ase_adsorption_filter(atoms: Atoms,
-                          adsorbate_elems: list[str]) -> bool:
+                          adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> bool:
     """
     Check that the adsorbate has not been incorporated in the bulk.
 

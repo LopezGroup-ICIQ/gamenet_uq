@@ -1,24 +1,13 @@
 """This module contains functions used for the whole workflow of the project, from
 data preparation to model training and evaluation."""
 
-from itertools import product
 import math
-from subprocess import Popen, PIPE
 from copy import copy, deepcopy
 
-from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.loader import DataLoader
-from torch_geometric.data import Data
 import torch.nn.functional as F
 import torch
-import numpy as np
-from scipy.spatial import Voronoi
-from ase.io.vasp import read_vasp
-from ase import Atoms
-from networkx import Graph, set_node_attributes, set_edge_attributes, is_connected, connected_components
 from torch_geometric.data import InMemoryDataset
- 
-from gamenet_uq.constants import CORDERO
 
 
 def split_percentage(splits: int, test: bool=True) -> tuple[int]:
@@ -275,92 +264,7 @@ def get_graph_conversion_params(path: str) -> tuple:
                 second_order_nn = True
             else:
                 second_order_nn = False
-    return voronoi_tol, scaling_factor, second_order_nn 
-
-
-def structure_to_graph(contcar_file: str,
-                       voronoi_tolerance: float,
-                       scaling_factor: dict,
-                       second_order: bool, 
-                       one_hot_encoder: OneHotEncoder, 
-                       molecule_elements: list[str]) -> Data:
-    """Create Pytorch Geometric graph from VASP chemical structure file (CONTCAR/POSCAR).
-
-    Args:
-        contcar_file (str): Path to CONTCAR/POSCAR file.
-        voronoi_tolerance (float): Tolerance applied during the graph conversion.
-        scaling_factor (float): Scaling factor applied to metal radius of metals.
-        second_order (bool): whether 2nd-order metal atoms are included.
-        one_hot_encoder (optional): One-hot encoder.
-
-    Returns:
-        graph (torch_geometric.data.Data): PyG graph representing the system under study.
-    """
-    atoms = read_vasp(contcar_file)
-    nx_graph = atoms_to_nxgraph(atoms, voronoi_tolerance, scaling_factor, second_order, molecule_elements)
-    species_list = [nx_graph.nodes[node]['element'] for node in nx_graph.nodes]
-    edge_tails = [edge[0] for edge in nx_graph.edges] + [edge[1] for edge in nx_graph.edges]
-    edge_heads = [edge[1] for edge in nx_graph.edges] + [edge[0] for edge in nx_graph.edges]
-    elem_array = np.array(species_list).reshape(-1, 1)
-    elem_enc = one_hot_encoder.transform(elem_array).toarray()
-    edge_index = torch.tensor([edge_tails, edge_heads], dtype=torch.long)
-    x = torch.tensor(elem_enc, dtype=torch.float)
-    return Data(x=x, edge_index=edge_index)
-
-
-
-
-def get_graph_sample(path: str, 
-                     surface_path: str,
-                     voronoi_tolerance: float, 
-                     scaling_factor: dict, 
-                     second_order: bool,
-                     encoder: OneHotEncoder,
-                     molecule_elements: list[str],
-                     gas_mol: bool=False,
-                     family: str=None, 
-                     surf_multiplier: int=None, 
-                     from_poscar: bool=False) -> Data:
-    """ 
-    Create labelled Pytroch Geometric graph from VASP calculation.
-    Args: 
-        path (str): path to the VASP directory of the calculation. OUTCAR and CONTCAR/POSCAR files are required.
-        surface_path (str): path to the VASP calculation of the empty metal slab. OUTCAR is required.
-        voronoi_tolerance (float): tolerance applied during the conversion to graph
-        scaling_factor (float): scaling parameter for the atomic radii of metals
-        second_order (bool): Inclusion of 2-hop metal neighbours
-        encoder (OneHotEncoder): one-hot encoder used to represent atomic elements   
-        gas_mol (bool): Whether the system is a gas molecule
-        family (str): Family the system belongs to (e.g. "aromatics")
-        surf_multiplier (int): Number of times the surface provided is repeated in the supercell (e.g. 2 for 2x2 surface)
-        from_poscar (bool): Whether to read the geometry from the POSCAR file (True) or the CONTCAR file (False)
-    Returns: 
-        pyg_graph (Data): Labelled graph in Pytorch Geometric format
-    """
-    # Select from which file to read the geometry
-    vasp_geometry_file = "POSCAR" if from_poscar else "CONTCAR"
-    # Convert the structure to a graph
-    pyg_graph = structure_to_graph("{}/{}".format(path, vasp_geometry_file),
-                             voronoi_tolerance=voronoi_tolerance, 
-                             scaling_factor=scaling_factor,
-                             second_order=second_order, 
-                             one_hot_encoder=encoder, 
-                             molecule_elements=molecule_elements)
-    # Label the graph with the energy of the system 
-    p1 = Popen(["grep", "energy  w", "{}/OUTCAR".format(path)], stdout=PIPE)
-    p2 = Popen(["tail", "-1"], stdin=p1.stdout, stdout=PIPE)
-    p3 = Popen(["awk", "{print $NF}"], stdin=p2.stdout, stdout=PIPE)
-    pyg_graph.y = float(p3.communicate()[0].decode("utf-8"))
-    if gas_mol == False:
-        ps1 = Popen(["grep", "energy  w", "{}/OUTCAR".format(surface_path)], stdout=PIPE)
-        ps2 = Popen(["tail", "-1"], stdin=ps1.stdout, stdout=PIPE)
-        ps3 = Popen(["awk", "{print $NF}"], stdin=ps2.stdout, stdout=PIPE)
-        surf_energy = float(ps3.communicate()[0].decode("utf-8"))
-        if surf_multiplier is not None:
-            surf_energy *= surf_multiplier
-        pyg_graph.y -= surf_energy  
-    pyg_graph.family = family if family is not None else "None"
-    return pyg_graph
+    return voronoi_tol, scaling_factor, second_order_nn
 
 
 def split_list(a: list, n: int):
@@ -404,21 +308,4 @@ def create_loaders_nested_cv(dataset: InMemoryDataset,
             val_loader = DataLoader(proxy2.pop(index2), batch_size=batch_size, shuffle=False)
             flatten_training = [item for sublist in proxy2 for item in sublist]  # flatten list of lists
             train_loader = DataLoader(flatten_training, batch_size=batch_size, shuffle=True)
-            yield deepcopy((train_loader, val_loader, test_loader))     
-
-def weighted_MAE(model, batch, weights):
-    """
-    Compute weighted MAE for a given model and dataloader.
-    Args:
-        model (nn.Module): model to evaluate
-        loader (DataLoader): dataloader for the dataset to evaluate
-        device (torch.device): device to use for the evaluation
-    Returns:
-        (float): weighted MAE
-    """
-    model.eval()
-    # compute weights for MAE based on the frequency of each batch.family in the dataset
-    weights = torch.zeros(len(batch.y))
-    for index, item in enumerate(batch.family):
-        weights[index] = 1 / batch.family.count(item)    
-    return torch.sum(weights * torch.abs(model(batch).squeeze() - batch.y)) / torch.sum(weights)
+            yield deepcopy((train_loader, val_loader, test_loader))

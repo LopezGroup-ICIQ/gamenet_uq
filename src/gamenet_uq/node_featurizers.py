@@ -9,6 +9,7 @@ import numpy as np
 from torch_geometric.data import Data
 import torch
 
+from gamenet_uq.constants import ADSORBATE_ELEMS
 from gamenet_uq.graph import get_voronoi_neighbourlist
 
 def get_magnetization(graph: Data) -> Data:
@@ -31,7 +32,7 @@ def get_magnetization(graph: Data) -> Data:
     return graph
 
 def adsorbate_node_featurizer(graph: Data, 
-                              adsorbate_elements: list[str]) -> Data:
+                              adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> Data:
     """
     Add a node feature to the graph which is 1 if the node is an adsorbate atom, 0 otherwise.
     graph must have as attributes:
@@ -46,9 +47,9 @@ def adsorbate_node_featurizer(graph: Data,
     return graph
 
 def get_gcn(graph: Data, 
-            atoms: Atoms,
-            adsorbate_elements: list[str], 
-            surface_neighbours: list[int]) -> Data:
+            atoms: Atoms, 
+            surface_indices: list[int], 
+            adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> Data:
     """
     Return the (normalized) generalized coordination number (gcn) for each surface atom in the ASE Atoms object.
     gcn is defined as the sum of the coordination numbers (cn) of the neighbours divided by the maximum coordination number.
@@ -102,14 +103,67 @@ def get_gcn(graph: Data,
     for i, node in enumerate(graph.x):
         index = torch.where(node == 1)[0][0].item()
         if index not in adsorbate_elements_indices:
-            gcn[i] = gcn_dict[surface_neighbours[counter]][0]
+            gcn[i] = gcn_dict[surface_indices[counter]][0]
             counter += 1
     graph.x = torch.cat((graph.x, gcn), dim=1)
     graph.node_feats.append("gcn")
     return graph
 
+def get_gcn2(atoms: Atoms,  
+            adsorbate_elements: list[str] = ADSORBATE_ELEMS, 
+            tol: float=0.5, 
+            scaling_factor: float=1.0) -> Data:
+    """
+    Return the (normalized) generalized coordination number (gcn) for each surface atom in the ASE Atoms object.
+    gcn is defined as the sum of the coordination numbers (cn) of the neighbours divided by the maximum coordination number.
+    gcn=0 atom alone; gcn=1 bulk atom; 0<gcn<1=surface atom.
+
+    graph must have as attributes:
+    - atoms (Atoms): ASE atoms object containing a slab with an adsorbate
+    - node_feats (list[str]): list of node features to be used in the graph
+
+    Args:
+        atoms (Atoms): ASE atoms object containing a slab with an adsorbate
+        adsorbate_elements (list[str]): list of symbols of the adsorbate elements
+
+    Returns:
+        Data: PyG Data object with the gcn as a node feature. Data.x.shape[1] increases by 1.
+                Data.node_feats is also updated.
+    """
+    gcn = np.zeros((len(atoms), 1))
+    surface_indices, adsorbate_indices = [], []
+    for i in range(len(atoms)):
+        if atoms[i].symbol in adsorbate_elements:
+            adsorbate_indices.append(i)
+        else:
+            surface_indices.append(i)
+    if len(surface_indices) == 0:
+        return gcn
+    nl = get_voronoi_neighbourlist(atoms, tol, scaling_factor, adsorbate_elements)
+    neighbour_dict = {}
+    for idx, atom in enumerate(atoms):
+        if idx in adsorbate_indices:
+            continue
+        neighbour_list = []
+        for row in nl:
+            if idx in row:
+                neighbour_idx = row[0] if row[0] != idx else row[1]
+                if neighbour_idx in surface_indices:
+                    neighbour_list.append((atoms[neighbour_idx].symbol,
+                                           neighbour_idx,
+                                           atoms[neighbour_idx].position[2]))  # z-coordinate
+        cn = len(neighbour_list)
+        neighbour_dict[idx] = (cn, atom.symbol, neighbour_list)
+    max_cn = max([neighbour_dict[i][0] for i in neighbour_dict.keys()])
+    for idx in neighbour_dict.keys():
+        cn_sum = 0
+        for neighbour in neighbour_dict[idx][2]:
+            cn_sum += neighbour_dict[neighbour[1]][0]
+        gcn[idx] = cn_sum / max_cn ** 2
+    return gcn
+
 def get_radical_atoms(atoms_obj: Atoms, 
-                      adsorbate_elements: list[str]) -> list[int]:
+                      adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> list[int]:
     """
     Detect atoms in the molecule which are radicals with RDKit.
 
@@ -139,7 +193,7 @@ def get_radical_atoms(atoms_obj: Atoms,
     return radical_atoms
 
 def get_atom_valence(atoms_obj: Atoms,
-                     adsorbate_elements: list[str]) -> list[float]:
+                     adsorbate_elements: list[str] = ADSORBATE_ELEMS) -> list[float]:
     """
     For each atom in the adsorbate, calculate the valence.
     Valence is defined as (x_max - x) / x_max, where x is the degree of the atom,

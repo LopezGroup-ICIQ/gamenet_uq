@@ -227,4 +227,4 @@ class GameNetUQ_ablation(torch.nn.Module):
         if self.uq:
             return Normal(out[:, 0], Softplus()(out[:, 1]))
         else:
-            return Normal(out[:, 0], 1.0)
+            return Normal(out[:, 0], 1.0)  # constant uncertainty = no uncertainty -> min(negative log likelihood) = min(MSE)

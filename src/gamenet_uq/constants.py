@@ -1,5 +1,7 @@
 """Global constants for the GNN project"""
 
+from sklearn.preprocessing import OneHotEncoder
+import numpy as np
 from torch.nn.functional import l1_loss, mse_loss, huber_loss
 from torch_geometric.nn import SAGEConv, GATv2Conv
 from torch.nn import ReLU, Tanh
@@ -41,6 +43,10 @@ FG_FAMILIES = ["Amides", "Amidines", "$C_{x}H_{y}O_{(0,1)}$", "$C_{x}H_{y}O_{(0,
                "$C_{x}H_{y}O_{(0,1)}$", "$C_{x}H_{y}N$", "$C_{x}H_{y}S$", 
                "$C_{x}H_{y}O_{(2,3)}$", "Oximes"]  # Proper chemical family name used in manuscipts
 FAMILY_DICT = dict(zip(FG_RAW_GROUPS, FG_FAMILIES))  
+
+METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
+ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
+OHE_ELEMENTS = OneHotEncoder().fit(np.array(ADSORBATE_ELEMS + METALS).reshape(-1, 1))
 
 # Dictionaries for model training features
 loss_dict = {"mse": mse_loss,

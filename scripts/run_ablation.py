@@ -25,13 +25,11 @@ from torch_geometric.seed import seed_everything
 from torch_geometric.loader import DataLoader
 from torch import load
 
+from gamenet_uq.constants import OHE_ELEMENTS
 from gamenet_uq.training import scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
 from gamenet_uq.nets import GameNetUQ_ablation
 from gamenet_uq.post_training import create_model_report
-from gamenet_uq.dataset import AdsorptionGraphDataset
 from gamenet_uq.graph_tools import remove_2hop_metal_nodes
-
-torch.backends.cudnn.deterministic = True 
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
@@ -41,8 +39,14 @@ if __name__ == "__main__":
                         help="Number of training runs for each combination of ablated features.")
     PARSER.add_argument("--ablated_features", type=str, nargs="+", dest="ablated_features", choices=["TS", "GCN", "SURF2HOPS", "UQ"],
                         help="Features to ablate: TS, GCN, SURF2HOPS, UQ")
+    PARSER.add_argument("--deterministic", action="store_true", dest="deterministic",
+                        help="Enable deterministic behavior of the training process on the GPU.")
     ARGS = PARSER.parse_args()
     
+    if ARGS.deterministic:
+        torch.backends.cudnn.deterministic = True  # this slows down the training!
+
+    # Collect features to ablate
     GCN_OPTIONS = [True]
     TS_OPTIONS = [True]
     SURF_2HOP_OPTIONS = [True]
@@ -57,8 +61,9 @@ if __name__ == "__main__":
         UQ_OPTIONS.append(False)
     feature_combinations = list(product(TS_OPTIONS, GCN_OPTIONS, SURF_2HOP_OPTIONS, UQ_OPTIONS))
     number_of_trainings = len(feature_combinations) * ARGS.nruns
-    print("Number of trainings in this ablation experiment: {}".format(number_of_trainings))
+    print("Number of trainings in the ablation experiment: {}".format(number_of_trainings))
 
+    # Load hyperparameters
     hyperparameters = toml.load(os.path.join(ARGS.i, "input.toml"))  
     ase_database_path = hyperparameters["data"]["ase_database_path"]
     graph_dataset_dir = hyperparameters["data"]["graph_dataset_path"]
@@ -77,13 +82,7 @@ if __name__ == "__main__":
         print("Device name: CPU")
         device_dict["name"] = "CPU"     
 
-    # Load graph dataset only to get OHE
-    dataset = AdsorptionGraphDataset(ase_database_path,
-                                    graph_dataset_dir,
-                                    graph_settings, 
-                                    '')
-    ohe_elements = dataset.ohe_elements
-
+    # Load data loaders
     train_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "train_loader.pth"))
     val_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "val_loader.pth"))
     test_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "test_loader.pth"))
@@ -92,13 +91,14 @@ if __name__ == "__main__":
     test_datalist_ttt = test_loader_ttt.dataset
 
     if False in SURF_2HOP_OPTIONS:
-        # Create dataloaders with graphs without 2-hop adsorbate neighbours
+        # Create data lists with graphs without 2-hop adsorbate neighbours
         train_data_no2hop = [remove_2hop_metal_nodes(data) for data in train_datalist_ttt]    
         val_data_no2hop = [remove_2hop_metal_nodes(data) for data in val_datalist_ttt]
         test_data_no2hop = [remove_2hop_metal_nodes(data) for data in test_datalist_ttt]
         for i in range(len(train_datalist_ttt)):
             assert train_datalist_ttt[i].formula == train_data_no2hop[i].formula
 
+    # Run training processes with ablated features
     for i, (TS, GCN, SURF, UQ) in enumerate(feature_combinations):
         for j in range(ARGS.nruns):
             seed_everything(42)            
@@ -121,14 +121,12 @@ if __name__ == "__main__":
             train_loader = DataLoader(train_datalist, batch_size=train["batch_size"], shuffle=True)
             val_loader = DataLoader(val_datalist, batch_size=train["batch_size"], shuffle=False)
             test_loader = DataLoader(test_datalist, batch_size=train["batch_size"], shuffle=False)            
-            
-            NODE_DIM = 20 if GCN else 19
-            
             train_loader, val_loader, test_loader, mean, std = scale_target(train_loader,
                                                                             val_loader,
                                                                             test_loader, 
                                                                             mode=train["target_scaling"], 
                                                                             test=train["test_set"])    
+            NODE_DIM = 20 if GCN else 19  # Ignore the gcn node attribute (last feature in the node feature vector)
             model = GameNetUQ_ablation(node_features=NODE_DIM,              
                             dim=architecture["dim"],
                             num_linear=architecture["num_linear"], 
@@ -190,7 +188,7 @@ if __name__ == "__main__":
                                     (train_loader, val_loader, test_loader),
                                     (mean, std),
                                     (train_list, val_list, test_list, lr_list),
-                                    ohe_elements, 
+                                    OHE_ELEMENTS, 
                                     device_dict, 
                                     parameter_changes, 
                                     (train_std, val_std, test_std), 

@@ -7,8 +7,8 @@ import resource
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 
 
-from torch_geometric.data import InMemoryDataset, Data, download_url
-from torch import zeros, where, cat, load, save, tensor
+from torch_geometric.data import InMemoryDataset, Data
+from torch import load, save, tensor
 import torch
 import torch.multiprocessing as mp
 from ase.db import connect
@@ -19,13 +19,10 @@ import numpy as np
 from ase.atoms import Atoms
 from ase.io import read
 
-from gamenet_uq.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter, ase_adsorption_filter, is_ring
+from gamenet_uq.constants import ADSORBATE_ELEMS, METALS, OHE_ELEMENTS
+from gamenet_uq.graph_filters import H_filter, C_filter, fragment_filter, ase_adsorption_filter, is_ring
 from gamenet_uq.graph import atoms_to_pyg
 from gamenet_uq.node_featurizers import get_gcn, get_radical_atoms, get_atom_valence, adsorbate_node_featurizer, get_magnetization
-
-METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
-ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
-OHE_ELEMENTS = OneHotEncoder().fit(np.array(ADSORBATE_ELEMS + METALS).reshape(-1, 1))
 
 
 def pyg_dataset_id(ase_database_path: str, 
@@ -63,8 +60,8 @@ def pyg_dataset_id(ase_database_path: str,
 
 class AdsorptionGraphDataset(InMemoryDataset):
     """
-    Generate graph dataset representing transition states and intermediates on metal surfaces.
-    Graphs are generated starting from the structures stored in an ASE database and conversion settings.
+    Graph dataset representing transition state structures and stable intermediates on surfaces.
+    Graphs are generated starting from the Atoms objects stored in the input ASE database and conversion settings.
     Graphs are stored as torch_geometric.data.Data.
     When the dataset object is instantiated for the first time, two different files are created:
     1) a `processed` directory containing the additional information about the dataset
@@ -72,7 +69,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         dependent on the conversion settings.
 
     Args:
-        ase_database_name (str): Path to the ASE database.
+        ase_database_path (str): Path to the ASE database.
         graph_dataset_dir (str): Path to the directory where the graph dataset files are stored.
         graph_params (dict): Dictionary containing the information for the graph generation in the format:
                             {"structure": {"tolerance": float, "scaling_factor": float, "second_order": bool},
@@ -82,27 +79,28 @@ class AdsorptionGraphDataset(InMemoryDataset):
                                            "facet": bool, 
                                            "gcn": bool}, 
                              "target": str}
-        database_key (str): Key to access specific items of the ase database. Example could be "metal=Pd,nC=2" for selecting
-                            only adsorbates with 2 C atoms on Pd surfaces.
+        db_key (str): Key to access specific items of the ase database. Example could be "metal=Pd,nC=2" for selecting
+                            adsorbates with 2 C atoms on Pd surfaces.
+        ncores (int): Number of cores used for multiprocessing. Default to the number of available cores.
         
     Notes:
         - "target" in graph_params must be a key of the ASE database. Check available keys with `ase db *.db`.
         - Each graph has two labels: graph.y and graph.target. Originally they are the same, 
           but during the trainings graph.target represents the 
           original value (energy in eV), while graph.y is the scaled value (unitless scaled energy).
+        - Limitation of the graph representation used here is that surface and adsorbate cannot share the same element. 
+            For instance, H2O on oxides is not supported.
 
     Example:
         Generate graph dataset containing only adsorption systems on Pt(111) surface, 
         with adsorbate, radical and facet features, and e_ads_dft as target.
-        >>> graph_params = {"structure": {"tolerance": 0.5, "scaling_factor": 1.5},
+        >>> graph_params = {"structure": {"tolerance": 0.5, "scaling_factor": 1.5, "second_order": True},
                             "features": {"adsorbate": True, "radical": True, "valence": False, "gcn": False, "magnetization": False},
                             "target": "scaled_energy"}
         >>> ase_database_path = "path/to/ase/database"
         >>> graph_dataset_dir = "path/to/graph/dataset"
         >>> dataset = AdsorptionGraphDataset(ase_database_path, graph_dataset_dir, graph_params, "calc_type=ts,facet=fcc(111),metal=Pt")
     """
-
-    URL = "https://zenodo.org/"  # TO BE ADDED ONCE PUBLISHED
 
     def __init__(self,
                  ase_database_path: str,
@@ -121,7 +119,7 @@ class AdsorptionGraphDataset(InMemoryDataset):
         self.ncores = ncores
         self.adsorbate_elems = ADSORBATE_ELEMS
         self.elements_list = ADSORBATE_ELEMS + METALS
-        self.ohe_elements = OneHotEncoder().fit(np.array(self.elements_list).reshape(-1, 1)) 
+        self.ohe_elements = OHE_ELEMENTS
         self.node_feature_list = list(self.ohe_elements.categories_[0])
         self.node_dim = len(self.node_feature_list)
         for key, value in graph_params["features"].items():
@@ -140,7 +138,6 @@ class AdsorptionGraphDataset(InMemoryDataset):
         return self.output_path
     
     def download(self):
-        # download_url(self.URL, self.root)  # download ase database from Zenodo if not available
         pass
     
     def process(self):  
@@ -302,11 +299,11 @@ class AdsorptionGraphDataset(InMemoryDataset):
 
 def atoms_to_data(structure: Union[Atoms, str], 
                   graph_params: dict[str, Union[float, int, bool]], 
-                  model_elems: list[str], 
+                  model_elems: list[str] = ADSORBATE_ELEMS + METALS, 
                   calc_type: str='int', 
-                  adsorbate_elements = ["C", "H", "O", "N", "S"]) -> Data:
+                  adsorbate_elements =ADSORBATE_ELEMS) -> Data:
     """
-    Convert ASE objects to PyG graphs for inference purposes
+    Convert ASE objects to PyG graphs for inference.
     (target values are not included in the Data object).
 
     Args:
@@ -314,6 +311,8 @@ def atoms_to_data(structure: Union[Atoms, str],
         graph_params (dict): Dictionary containing the information for the graph generation in the format:
                             {"tolerance": float, "scaling_factor": float, "metal_hops": int, "second_order_nn": bool}
         model_elems (list): List of chemical elements that can be processed by the model.
+        calc_type (str): Type of calculation. "int" for intermediates, "ts" for transition states.
+        adsorbate_elements (list): List of adsorbate elements. Default to ["C", "H", "O", "N", "S"].
     Returns:
         graph (Data): PyG Data object.
     """
