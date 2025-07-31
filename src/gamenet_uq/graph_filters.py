@@ -54,8 +54,7 @@ def fragment_filter(graph: Data,
         if is_connected(graph_nx):
             return True
         else:
-            print(f"{graph.formula}: Fragmented adsorbate.\n".format(
-                graph.formula))
+            print(f"{graph.formula}({graph.path}): Fragmented adsorbate.\n")
             return False
     else:
         return True
@@ -102,7 +101,7 @@ def H_filter(graph: Data,
                 other_atom = torch.where(graph.x[graph.edge_index[1, j], :] == 1)[0][0].item()  
                 counter += 1 if other_atom in adsorbate_elems_indices else 0
         if counter > 1: 
-            print("H connectivity filter failed for {}".format(graph.formula))
+            print("wrong H connectivity for {}({})".format(graph.formula, graph.path))
             return False
     return True
 
@@ -132,7 +131,7 @@ def C_filter(graph: Data,
                 other_atom = torch.where(graph.x[graph.edge_index[1, j], :] == 1)[0][0].item()  
                 counter += 1 if other_atom in adsorbate_elems_indices else 0
         if counter > 4: 
-            print("C connectivity filter failed for {}".format(graph.formula))
+            print("wrong C connectivity for {}({})".format(graph.formula, graph.path))
             return False
     return True
 
