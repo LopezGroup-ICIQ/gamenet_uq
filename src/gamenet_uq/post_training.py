@@ -63,7 +63,7 @@ def create_model_report(model_name: str,
     
     # 4) Extract graph conversion parameters
     voronoi_tol = graph["structure"]["tolerance"]
-    second_order_nn = graph["structure"]["second_order"]
+    surface_order = graph["structure"]["surface_order"]
     scaling_factor = graph["structure"]["scaling_factor"]
     node_adsorbate_descriptor = graph["features"]["adsorbate"]
     node_radical_descriptor = graph["features"]["radical"]
@@ -184,7 +184,7 @@ def create_model_report(model_name: str,
         file1.write("GRAPH REPRESENTATION PARAMETERS\n")
         file1.write("Voronoi tolerance = {} Angstrom\n".format(voronoi_tol))
         file1.write("Atomic radii scaling factor = {}\n".format(scaling_factor))
-        file1.write("Second order metal neighbours inclusion = {}\n".format(second_order_nn))
+        file1.write("Surface order metal neighbours inclusion = {}\n".format(surface_order))
         file1.write("Node adsorbate/surface descriptor = {}\n".format(node_adsorbate_descriptor))
         file1.write("Node radical descriptor = {}\n".format(node_radical_descriptor))
         file1.write("TRAINING PROCESS\n")
@@ -292,7 +292,7 @@ def create_model_report(model_name: str,
     file1.write("GRAPH REPRESENTATION PARAMETERS\n")
     file1.write("Voronoi tolerance = {} Angstrom\n".format(voronoi_tol))
     file1.write("Atomic radius scaling factor = {}\n".format(scaling_factor))
-    file1.write("Second order metal neighbours inclusion = {}\n".format(second_order_nn))
+    file1.write("Surface order metal neighbours inclusion = {}\n".format(surface_order))
     file1.write("Node adsorbate/surface descriptor = {}\n".format(node_adsorbate_descriptor))
     file1.write("Node radical descriptor = {}\n".format(node_radical_descriptor))
     file1.write("---------------------------------------------------------\n")
