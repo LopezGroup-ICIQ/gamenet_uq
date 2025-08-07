@@ -100,24 +100,33 @@ def create_model_report(model_name: str,
 
     # 8) Get predictions and true values and save them in a csv file for train/val sets
     model.eval()
-    model.to("cpu")
+    model.to("cuda")
     x_pred, x_true = [], []  # Train set
     a_pred, a_true = [], []  # Validation set
-    
-    for graph in train_loader.dataset:  # iter graph by graph to avoid reshuffling here
+    std_train, std_val, std_test = [], [], []
+
+    train_loader_new = DataLoader(train_loader.dataset, batch_size=128, shuffle=False)    
+    for batch in train_loader_new:  # iter graph by graph to avoid reshuffling here
+        batch = batch.to("cuda")
         with torch.no_grad():
-            x_pred += model(graph).mean
-            x_true += graph.target
+            y = model(batch)
+            x_pred += y.mean
+            std_train += y.scale
+            x_true += batch.target
     for batch in val_loader:
-        batch = batch.to("cpu")
+        batch = batch.to("cuda")
         with torch.no_grad():
-            a_pred += model(batch).mean
+            y = model(batch)
+            a_pred += y.mean
             a_true += batch.target
+            std_val += y.scale
     # Re-scale predictions and true values
     z_pred = [x_pred[i].item()*std_tv + mean_tv for i in range(N_train)]  # Train set
     z_true = [x_true[i].item() for i in range(N_train)]
     b_pred = [a_pred[i].item()*std_tv + mean_tv for i in range(N_val)]  # Val set
     b_true = [a_true[i].item() for i in range(N_val)]
+    std_train = [std_train[i].item()*std_tv for i in range(N_train)]
+    std_val = [std_val[i].item()*std_tv for i in range(N_val)]
     error_train = [(z_pred[i] - z_true[i]) for i in range(N_train)]                   # Error (train set)
     error_val = [(b_pred[i] - b_true[i]) for i in range(N_val)]                       # Error (validation set)
     abs_error_train = [abs(error_train[i]) for i in range(N_train)]                   # Absolute Error (train set)
@@ -131,15 +140,19 @@ def create_model_report(model_name: str,
     val_bb_list = [graph.bb_type for graph in val_loader.dataset]
     train_metal_list = [graph.metal for graph in train_loader.dataset]
     val_metal_list = [graph.metal for graph in val_loader.dataset]
+    train_type_list = [graph.type  for graph in train_loader.dataset]
+    val_type_list = [graph.type  for graph in val_loader.dataset]
+    train_adsorbate_size = [len([e for e in graph.elem if e in ["C", "H", "O", "N", "S"]])  for graph in train_loader.dataset]
+    val_adsorbate_size = [len([e for e in graph.elem if e in ["C", "H", "O", "N", "S"]])  for graph in val_loader.dataset]
     
     with open("{}/{}/train_set.csv".format(model_path, model_name), "w") as file4:
         writer = csv.writer(file4, delimiter='\t')
-        writer.writerow(["System", "Metal", "Surface", "Bond", "True_eV", "Prediction_eV", "Error_eV", "Abs_error_eV"])
-        writer.writerows(zip(train_label_list, train_metal_list, train_facet_list, train_bb_list, z_true, z_pred, error_train, abs_error_train))    
+        writer.writerow(["System", "Adsorbate_size", "Metal", "Surface", "Type", "Bond", "True_eV", "Prediction_eV", "Error_eV", "Abs_error_eV", "Std_eV"])
+        writer.writerows(zip(train_label_list, train_adsorbate_size, train_metal_list, train_facet_list, train_type_list, train_bb_list, z_true, z_pred, error_train, abs_error_train, std_train))    
     with open("{}/{}/validation_set.csv".format(model_path, model_name), "w") as file4:
         writer = csv.writer(file4, delimiter='\t')
-        writer.writerow(["System", "Metal", "Surface", "Bond", "True_eV", "Prediction_eV", "Error_eV", "Abs_error_eV"])
-        writer.writerows(zip(val_label_list, val_metal_list, val_facet_list, val_bb_list, b_true, b_pred, error_val, abs_error_val))
+        writer.writerow(["System", "Adsorbate_size", "Metal", "Surface", "Type", "Bond", "True_eV", "Prediction_eV", "Error_eV", "Abs_error_eV", "Std_eV"])
+        writer.writerows(zip(val_label_list, val_adsorbate_size, val_metal_list, val_facet_list, val_type_list, val_bb_list, b_true, b_pred, error_val, abs_error_val, std_val))
 
     # MAE trend during training
     train_list = mae_lists[0]
@@ -155,8 +168,7 @@ def create_model_report(model_name: str,
     # 10) Save model architecture and parameters
     torch.save(model, "{}/{}/model.pth".format(model_path, model_name))             # Save model architecture
     torch.save(model.state_dict(), "{}/{}/GNN.pth".format(model_path, model_name))  # Save model parameters
-    #save one hot encoder
-    torch.save(one_hot_encoder_elements, "{}/{}/one_hot_encoder_elements.pth".format(model_path, model_name))
+    torch.save(one_hot_encoder_elements, "{}/{}/one_hot_encoder_elements.pth".format(model_path, model_name))  # Save one-hot encoder
         
             
     # 11) Store Hyperparameters dict from input file
@@ -213,64 +225,49 @@ def create_model_report(model_name: str,
     test_facet_list = [graph.facet for graph in test_loader.dataset]
     test_bb_list = [graph.bb_type for graph in test_loader.dataset]
     test_metal_list = [graph.metal for graph in test_loader.dataset]
+    test_type_list = [graph.type  for graph in test_loader.dataset]
+    test_adsorbate_size = [len([e for e in graph.elem if e in ["C", "H", "O", "N", "S"]])  for graph in test_loader.dataset]
     N_test = len(test_loader.dataset)  
     N_tot = N_train + N_val + N_test    
     w_pred, w_true = [], []  # Test set
     for batch in test_loader:
         with torch.no_grad():
-            batch = batch.to("cpu")
-            w_pred += model(batch).mean
+            batch = batch.to("cuda")
+            y = model(batch)
+            w_pred += y.mean
             w_true += batch.target
+            std_test += y.scale
     y_pred = [w_pred[i].item()*std_tv + mean_tv for i in range(N_test)]  # Test set
+    std_test = [std_test[i].item()*std_tv for i in range(N_test)]
     y_true = [w_true[i].item() for i in range(N_test)] 
-    error_test = [(y_pred[i] - y_true[i]) for i in range(N_test)]                     # Error (test set)
+    error_test = [(y_true[i] - y_pred[i]) for i in range(N_test)]                     # Error (test set)
     abs_error_test = [abs(error_test[i]) for i in range(N_test)]                      # Absolute Error (test set)
     squared_error_test = [error_test[i] ** 2 for i in range(N_test)]                  # Squared Error
     abs_pctg_error_test = [abs(error_test[i] / y_true[i]) for i in range(N_test)]     # Absolute Percentage Error
     std_error_test = np.std(error_test)                                               # eV
-    # Save test set error of the samples            
-    with open("{}/{}/test_set.csv".format(model_path, model_name), "w") as file4:
-        writer = csv.writer(file4, delimiter='\t')
-        writer.writerow(["System", "Metal", "Surface", "Bond", "True_eV", "Prediction_eV", "Error_eV", "Abs_error_eV"])
-        writer.writerows(zip(test_label_list, test_metal_list, test_facet_list, test_bb_list, y_true, y_pred, error_test, abs_error_test))   
 
-    formula, metal, surface, bb, y_true, y_mean, y_std, y_min, y_max, in_interval, error = [], [], [], [], [], [], [], [], [], [], []
-    for graph in test_loader.dataset:
-        formula.append(graph.formula)
-        metal.append(graph.metal)
-        surface.append(graph.facet)
-        bb.append(graph.bb_type)
-        y_true.append(graph.target.numpy()[0])
-        y_mean.append(model(graph).mean.cpu().detach().numpy()[0] * std_tv + mean_tv)
-        y_std.append(model(graph).stddev.cpu().detach().numpy()[0] * std_tv)
-        # Get confidence interval for each prediction based on the std and mean at confidence level 95%
-        y_min.append(y_mean[-1] - 1.96 * y_std[-1])
-        y_max.append(y_mean[-1] + 1.96 * y_std[-1])
-        # Check if the true value is in the confidence interval
-        in_interval.append(
-            (y_min[-1] < y_true[-1] < y_max[-1])
-        )
-        error.append(y_true[-1] - y_mean[-1])
+    df = pd.DataFrame({
+        "System": test_label_list,
+        "Adsorbate_size": test_adsorbate_size,
+        "Metal": test_metal_list,
+        "Surface": test_facet_list,
+        "Type": test_type_list,
+        "Bond": test_bb_list,
+        "True_eV": y_true,
+        "Prediction_eV": y_pred,
+        "Error_eV": error_test,
+        "Abs_error_eV": abs_error_test,
+        "Std_eV": std_test
+    })
+    df["norm_res"] = df["Error_eV"] / df["Std_eV"]
+    df["y_min"] = df["Prediction_eV"] - 1.96 * df["Std_eV"]
+    df["y_max"] = df["Prediction_eV"] + 1.96 * df["Std_eV"]
+    df["in_interval"] = (df["y_min"] <= df["True_eV"]) & (df["True_eV"] <= df["y_max"])
+    df.to_csv("{}/{}/test_set.csv".format(model_path, model_name), index=False)
 
-    df = pd.DataFrame(
-        {
-            "formula": formula,
-            "metal": metal,
-            "surface": surface,
-            "bb": bb,
-            "y_true": y_true,
-            "y_mean": y_mean,
-            "error": error,
-            "y_std": y_std,
-            "y_min": y_min,
-            "y_max": y_max,
-            "in_interval": in_interval,
-        }
-    )
-    df["norm_res"] = df["error"] / df["y_std"]
-    sha = ((np.sum(df["y_std"].pow(2))) / len(df)) ** 0.5  # Sharpness [eV]
-    mu_std = df["y_std"].mean()
-    cv = (np.sum(df["y_std"].array - mu_std) ** 2.0 / (len(df) - 1.0)) ** 0.5 / mu_std  # Coefficient of variation [-]
+    sha = ((np.sum(df["Std_eV"].pow(2))) / len(df)) ** 0.5  # Sharpness [eV]   
+    mu_std = df["Std_eV"].mean()
+    cv = (np.sum(df["Std_eV"].array - mu_std) ** 2.0 / (len(df) - 1.0)) ** 0.5 / mu_std  # Coefficient of variation [-]
     x = np.linspace(-6.0, 6.0, 100000)
     CDF_observed = [np.sum(df["norm_res"] < i) / len(df) for i in x]
     CDF_theoretical = (1 + torch.erf(torch.tensor(x / np.sqrt(2)))) / 2
@@ -281,7 +278,6 @@ def create_model_report(model_name: str,
     CDF_theoretical[np.where(CDF_theoretical == 0)] = 1e-10
     CDF_theoretical[np.where(CDF_theoretical == 1)] = 1 - 1e-10
     miscalibration_area = np.sum(np.abs(CDF_observed - CDF_theoretical)) / len(CDF_observed)
-    df.to_csv("{}/{}/uq.csv".format(model_path, model_name), index=False)
     # Performance Report
     file1 = open("{}/{}/performance.txt".format(model_path, model_name), "w")
     file1.write(run_period)
@@ -298,8 +294,6 @@ def create_model_report(model_name: str,
     file1.write("---------------------------------------------------------\n")
     file1.write("GNN ARCHITECTURE\n")
     file1.write("Activation function = {}\n".format(architecture["sigma"]))
-    # file1.write("Convolutional layer = {}\n".format(architecture["conv_layer"]))
-    #file1.write("Pooling layer = {}\n".format(architecture["pool_layer"]))
     file1.write("Number of convolutional layers = {}\n".format(architecture["num_conv"]))
     file1.write("Number of fully connected layers = {}\n".format(architecture["num_linear"]))
     file1.write("Depth of the layers = {}\n".format(architecture["dim"]))

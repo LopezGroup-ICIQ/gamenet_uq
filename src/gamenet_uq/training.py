@@ -4,6 +4,7 @@ This module contains functions used for training and testing the GNN models.
 
 import math
 from copy import copy, deepcopy
+from typing import Union
 
 from torch_geometric.loader import DataLoader
 import torch.nn.functional as F
@@ -281,7 +282,7 @@ def split_list(a: list, n: int):
     k, m = divmod(len(a), n)
     return (a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
 
-def create_loaders_nested_cv(dataset: InMemoryDataset, 
+def create_loaders_nested_cv(dataset: Union[InMemoryDataset,list], 
                              split: int, 
                              batch_size: int):
     """
@@ -293,15 +294,11 @@ def create_loaders_nested_cv(dataset: InMemoryDataset,
     Returns:
         (tuple): tuple with dataloaders for training, validation and testing.
     """
-    # Create list of lists, where each list contains the datasets for a split.
-    chunk = [[] for _ in range(split)]
-    
-    dataset.shuffle()
+    chunk = [[] for _ in range(split)]    
     iterator = split_list(dataset, split)
     for index, item in enumerate(iterator):
         chunk[index] += item
     chunk = sorted(chunk, key=len)
-    # Create dataloaders for each split.    
     for index in range(len(chunk)):
         proxy = copy(chunk)
         test_loader = DataLoader(proxy.pop(index), batch_size=batch_size, shuffle=False)
