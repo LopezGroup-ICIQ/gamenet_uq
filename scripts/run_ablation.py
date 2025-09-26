@@ -80,18 +80,18 @@ if __name__ == "__main__":
         device_dict["name"] = "CPU"     
 
     # Load data loaders
-    train_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader.pth"))
-    val_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader.pth"))
-    test_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader.pth"))
+    train_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader.pth"), weights_only=False)
+    val_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader.pth"), weights_only=False)
+    test_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader.pth"), weights_only=False)
     train_datalist_2hop = train_loader_2hop.dataset
     val_datalist_2hop = val_loader_2hop.dataset
     test_datalist_2hop = test_loader_2hop.dataset
 
     if False in SURF_2HOP_OPTIONS:
         # Create data lists with graphs without 2-hop adsorbate neighbours
-        train_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader_no2hop.pth"))
-        val_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader_no2hop.pth"))
-        test_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader_no2hop.pth"))
+        train_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader_no2hop.pth"), weights_only=False)
+        val_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader_no2hop.pth"), weights_only=False)
+        test_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader_no2hop.pth"), weights_only=False)
         train_data_no2hop = train_loader_no2hop.dataset     
         val_data_no2hop = val_loader_no2hop.dataset
         test_data_no2hop = test_loader_no2hop.dataset
