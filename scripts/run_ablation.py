@@ -8,7 +8,7 @@
 
 The script expects to provide a path to a directory with the following structure:
 - input.toml: a TOML file with hyperparameters for the training process.
-- dataloaders: a folder with PyTorch DataLoader objects for train, val, and test sets. 
+- dataloaders: a folder with PyTorch Geoemtric DataLoader objects for train, val, and test sets with graphs with and without 2-hop surface atoms neighbours. 
     Stored graphs must have the original GAME-Net-UQ features: 2hop adsorbate neighbours, gcn node features, and TS labels.
 - models: A folder where the trained models will be saved.
 
@@ -65,9 +65,6 @@ if __name__ == "__main__":
 
     # Load hyperparameters
     hyperparameters = toml.load(os.path.join(ARGS.i, "input.toml"))  
-    ase_database_path = hyperparameters["data"]["ase_database_path"]
-    graph_dataset_dir = hyperparameters["data"]["graph_dataset_path"]
-    graph_settings = hyperparameters["graph"]
     train = hyperparameters["train"]
     architecture = hyperparameters["architecture"]        
     device_dict = {}
@@ -83,20 +80,21 @@ if __name__ == "__main__":
         device_dict["name"] = "CPU"     
 
     # Load data loaders
-    train_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "train_loader.pth"))
-    val_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "val_loader.pth"))
-    test_loader_ttt = load(os.path.join(ARGS.i, "dataloaders", "test_loader.pth"))
-    train_datalist_ttt = train_loader_ttt.dataset
-    val_datalist_ttt = val_loader_ttt.dataset
-    test_datalist_ttt = test_loader_ttt.dataset
+    train_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader.pth"))
+    val_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader.pth"))
+    test_loader_2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader.pth"))
+    train_datalist_2hop = train_loader_2hop.dataset
+    val_datalist_2hop = val_loader_2hop.dataset
+    test_datalist_2hop = test_loader_2hop.dataset
 
     if False in SURF_2HOP_OPTIONS:
         # Create data lists with graphs without 2-hop adsorbate neighbours
-        train_data_no2hop = [remove_2hop_metal_nodes(data) for data in train_datalist_ttt]    
-        val_data_no2hop = [remove_2hop_metal_nodes(data) for data in val_datalist_ttt]
-        test_data_no2hop = [remove_2hop_metal_nodes(data) for data in test_datalist_ttt]
-        for i in range(len(train_datalist_ttt)):
-            assert train_datalist_ttt[i].formula == train_data_no2hop[i].formula
+        train_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader_no2hop.pth"))
+        val_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader_no2hop.pth"))
+        test_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader_no2hop.pth"))
+        train_data_no2hop = train_loader_no2hop.dataset     
+        val_data_no2hop = val_loader_no2hop.dataset
+        test_data_no2hop = test_loader_no2hop.dataset
 
     # Run training processes with ablated features
     for i, (TS, GCN, SURF, UQ) in enumerate(feature_combinations):
@@ -109,18 +107,18 @@ if __name__ == "__main__":
 
             print("Run {} of {} for TS={}, GCN={}, SURF={}, UQ={}".format((i+1)*(j+1), number_of_trainings, TS, GCN, SURF, UQ))
             if SURF == True:
-                train_datalist = deepcopy(train_datalist_ttt)
-                val_datalist = deepcopy(val_datalist_ttt)
-                test_datalist = deepcopy(test_datalist_ttt)
+                train_datalist = train_datalist_2hop
+                val_datalist = val_datalist_2hop
+                test_datalist = test_datalist_2hop
             else:
-                train_datalist = deepcopy(train_data_no2hop)
-                val_datalist = deepcopy(val_data_no2hop)
-                test_datalist = deepcopy(test_data_no2hop)
+                train_datalist = train_data_no2hop
+                val_datalist = val_data_no2hop
+                test_datalist = test_data_no2hop
 
             # if num_workers > 0, nondeterministic behavior occurs!
             train_loader = DataLoader(train_datalist, batch_size=train["batch_size"], shuffle=True)
-            val_loader = DataLoader(val_datalist, batch_size=train["batch_size"], shuffle=False)
-            test_loader = DataLoader(test_datalist, batch_size=train["batch_size"], shuffle=False)            
+            val_loader = DataLoader(val_datalist, batch_size=train["eval_batch_size"], shuffle=False)
+            test_loader = DataLoader(test_datalist, batch_size=train["eval_batch_size"], shuffle=False)            
             train_loader, val_loader, test_loader, mean, std = scale_target(train_loader,
                                                                             val_loader,
                                                                             test_loader, 
