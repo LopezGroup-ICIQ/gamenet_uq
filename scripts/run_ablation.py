@@ -158,9 +158,15 @@ if __name__ == "__main__":
                     val_MAE, val_scale = test_loop(model, val_loader, device, std)  
                     lr_scheduler.step(val_MAE)
                     if train["test_set"]:
-                        test_MAE, test_scale = test_loop(model, test_loader, device, std)         
-                        test_list.append(test_MAE)
-                        test_std.append(test_scale)
+                        if epoch in (1, train["epochs"]) or epoch % 50 == 0:
+                            test_MAE, test_scale = test_loop(model, test_loader, device, std)         
+                            test_list.append(test_MAE)
+                            test_std.append(test_scale)
+                        else:
+                            test_MAE = test_list[-1] if len(test_list) != 0 else 0.0
+                            test_scale = test_std[-1] if len(test_std) != 0 else 0.0
+                            test_list.append(test_MAE)
+                            test_std.append(test_scale)
                         print('Epoch {:03d}: LR={:.7f}  Train MAE: {:.4f} eV  Val MAE: {:.4f} eV '             
                             'Test MAE: {:.4f} eV'.format(epoch, lr, train_MAE*std, val_MAE, test_MAE))
                     else:

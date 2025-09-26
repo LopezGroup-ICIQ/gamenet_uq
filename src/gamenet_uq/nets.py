@@ -146,7 +146,7 @@ class GameNetUQ(torch.nn.Module):
         mask = (~mask).unsqueeze(1).to(dtype=out.dtype) * -1e9
         out = self.pma(x=batch_x, mask=mask)
         out = self.lin_b(out.squeeze(1))  
-        return Normal(out[:, 0], Softplus()(out[:, 1]) + 1e-6)  # +1e-6 for numerical stability during training
+        return Normal(out[:, 0], Softplus()(out[:, 1]))  # +1e-6 for numerical stability during training
     
 
 class GameNetUQ_ablation(torch.nn.Module):
