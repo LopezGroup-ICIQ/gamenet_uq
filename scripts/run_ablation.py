@@ -92,9 +92,9 @@ if __name__ == "__main__":
         train_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "train_loader_no2hop.pth"), weights_only=False)
         val_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "val_loader_no2hop.pth"), weights_only=False)
         test_loader_no2hop = load(os.path.join(ARGS.i, "dataloaders", "test_loader_no2hop.pth"), weights_only=False)
-        train_data_no2hop = train_loader_no2hop.dataset     
-        val_data_no2hop = val_loader_no2hop.dataset
-        test_data_no2hop = test_loader_no2hop.dataset
+        train_datalist_no2hop = train_loader_no2hop.dataset
+        val_datalist_no2hop = val_loader_no2hop.dataset
+        test_datalist_no2hop = test_loader_no2hop.dataset
 
     # Run training processes with ablated features
     for i, (TS, GCN, SURF, UQ) in enumerate(feature_combinations):
@@ -111,9 +111,9 @@ if __name__ == "__main__":
                 val_datalist = val_datalist_2hop
                 test_datalist = test_datalist_2hop
             else:
-                train_datalist = train_data_no2hop
-                val_datalist = val_data_no2hop
-                test_datalist = test_data_no2hop
+                train_datalist = train_datalist_no2hop
+                val_datalist = val_datalist_no2hop
+                test_datalist = test_datalist_no2hop
 
             # if num_workers > 0, nondeterministic behavior occurs!
             train_loader = DataLoader(train_datalist, batch_size=train["batch_size"], shuffle=True)
@@ -134,7 +134,6 @@ if __name__ == "__main__":
                             gcn=GCN,
                             uq=UQ,
                             seed=42).to(device)
-            initial_params = {name: p.clone() for name, p in model.named_parameters()}
             optimizer = torch.optim.Adam(model.parameters(),
                                         lr=train["lr0"],
                                         eps=train["eps"], 
@@ -147,56 +146,47 @@ if __name__ == "__main__":
                                                                     min_lr=train["minlr"])  
             loss_list, train_list, val_list, test_list, lr_list = [], [], [], [], []
             train_std, val_std, test_std = [], [], [] 
-            try:
-                t0 = time.time()
-                for epoch in range(1, train["epochs"]+1):
-                    lr = lr_scheduler.optimizer.param_groups[0]['lr']        
-                    loss_func = nll_loss if epoch > 0 else nll_loss_warmup
-                    loss, train_MAE, train_scale = train_loop(model, device, train_loader, optimizer, loss_func)  
-                    val_MAE, val_scale = test_loop(model, val_loader, device, std)  
-                    lr_scheduler.step(val_MAE)
-                    if train["test_set"]:
-                        if epoch in (1, train["epochs"]) or epoch % 50 == 0:
-                            test_MAE, test_scale = test_loop(model, test_loader, device, std)         
-                            test_list.append(test_MAE)
-                            test_std.append(test_scale)
-                        else:
-                            test_MAE = test_list[-1] if len(test_list) != 0 else 0.0
-                            test_scale = test_std[-1] if len(test_std) != 0 else 0.0
-                            test_list.append(test_MAE)
-                            test_std.append(test_scale)
-                        print('Epoch {:03d}: LR={:.7f}  Train MAE: {:.4f} eV  Val MAE: {:.4f} eV '             
-                            'Test MAE: {:.4f} eV'.format(epoch, lr, train_MAE*std, val_MAE, test_MAE))
+            t0 = time.time()
+            for epoch in range(1, train["epochs"]+1):
+                lr = lr_scheduler.optimizer.param_groups[0]['lr']        
+                loss_func = nll_loss if epoch > 0 else nll_loss_warmup
+                loss, train_MAE, train_scale = train_loop(model, device, train_loader, optimizer, loss_func)  
+                val_MAE, val_scale = test_loop(model, val_loader, device, std)  
+                lr_scheduler.step(val_MAE)
+                if train["test_set"]:
+                    if epoch in (1, train["epochs"]) or epoch % 50 == 0:
+                        test_MAE, test_scale = test_loop(model, test_loader, device, std)         
+                        test_list.append(test_MAE)
+                        test_std.append(test_scale)
                     else:
-                        print('Epoch {:03d}: LR={:.7f}  Train MAE: {:.6f} eV  Val MAE: {:.6f} eV '
-                            .format(epoch, lr, train_MAE*std, val_MAE))         
-                    loss_list.append(loss)
-                    train_list.append(train_MAE * std)
-                    train_std.append(train_scale * std)
-                    val_list.append(val_MAE)
-                    val_std.append(val_scale)
-                    lr_list.append(lr)                    
-                parameter_changes = {}
-                for name, p in model.named_parameters():
-                    change = torch.norm(p - initial_params[name])  # L2 norm
-                    parameter_changes[name] = change
-                sorted_changes = sorted(parameter_changes.items(), key=lambda x: x[1], reverse=True)
-                print("-----------------------------------------------------------------------------------------")
-                training_time = (time.time() - t0) / 60.0  
-                print("Training time: {:.2f} min".format(training_time))
-                device_dict["training_time"] = training_time
-                create_model_report(MODEL_NAME,
-                                    os.path.join(ARGS.o, "models"),
-                                    hyperparameters,  
-                                    model, 
-                                    (train_loader, val_loader, test_loader),
-                                    (mean, std),
-                                    (train_list, val_list, test_list, lr_list),
-                                    OHE_ELEMENTS, 
-                                    device_dict, 
-                                    parameter_changes, 
-                                    (train_std, val_std, test_std), 
-                                    save_loaders=False)
-            except:
-                print("Error in training. Break training and go to the next run.")
-                continue
+                        test_MAE = test_list[-1] if len(test_list) != 0 else 0.0
+                        test_scale = test_std[-1] if len(test_std) != 0 else 0.0
+                        test_list.append(test_MAE)
+                        test_std.append(test_scale)
+                    print('Epoch {:03d}: LR={:.7f}  Train MAE: {:.4f} eV  Val MAE: {:.4f} eV '             
+                        'Test MAE: {:.4f} eV'.format(epoch, lr, train_MAE*std, val_MAE, test_MAE))
+                else:
+                    print('Epoch {:03d}: LR={:.7f}  Train MAE: {:.6f} eV  Val MAE: {:.6f} eV '
+                        .format(epoch, lr, train_MAE*std, val_MAE))         
+                loss_list.append(loss)
+                train_list.append(train_MAE * std)
+                train_std.append(train_scale * std)
+                val_list.append(val_MAE)
+                val_std.append(val_scale)
+                lr_list.append(lr)                    
+            print("-----------------------------------------------------------------------------------------")
+            training_time = (time.time() - t0) / 60.0  
+            print("Training time: {:.2f} min".format(training_time))
+            device_dict["training_time"] = training_time
+            create_model_report(model_name=MODEL_NAME,
+                                model_path=os.path.join(ARGS.o, "models"),
+                                configuration_dict=hyperparameters,  
+                                model=model, 
+                                loaders=(train_loader, val_loader, test_loader),
+                                scaling_params=(mean, std),
+                                mae_lists=(train_list, val_list, test_list, lr_list),
+                                one_hot_encoder_elements=OHE_ELEMENTS, 
+                                device=device_dict, 
+                                params_changes=None, 
+                                std_lists=(train_std, val_std, test_std), 
+                                save_loaders=False)
