@@ -14,7 +14,6 @@ The script expects to provide a path to a directory with the following structure
 
 """
 
-from copy import deepcopy
 from itertools import product
 import sys, os, time, argparse
 sys.path.insert(0, "../src")
