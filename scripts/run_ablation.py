@@ -29,7 +29,6 @@ from gamenet_uq.constants import OHE_ELEMENTS
 from gamenet_uq.training import scale_target, train_loop, test_loop, nll_loss, nll_loss_warmup
 from gamenet_uq.nets import GameNetUQ_ablation
 from gamenet_uq.post_training import create_model_report
-from gamenet_uq.graph_tools import remove_2hop_metal_nodes
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description="Perform a training process with the provided hyperparameter settings.")
@@ -104,8 +103,8 @@ if __name__ == "__main__":
             if os.path.exists(os.path.join(ARGS.i, "models", MODEL_NAME)):
                 print("TS={}, GCN={}, SURF={}, UQ={}, RUN={} already exists. Skip.".format(TS, GCN, SURF, UQ, j+1))
                 continue
-
-            print("Run {} of {} for TS={}, GCN={}, SURF={}, UQ={}".format((i+1)*(j+1), number_of_trainings, TS, GCN, SURF, UQ))
+            run_idx = i * ARGS.nruns + j + 1
+            print("Run {} of {} for TS={}, GCN={}, SURF={}, UQ={}".format(run_idx, number_of_trainings, TS, GCN, SURF, UQ))
             if SURF == True:
                 train_datalist = train_datalist_2hop
                 val_datalist = val_datalist_2hop
@@ -179,7 +178,7 @@ if __name__ == "__main__":
             print("Training time: {:.2f} min".format(training_time))
             device_dict["training_time"] = training_time
             create_model_report(model_name=MODEL_NAME,
-                                model_path=os.path.join(ARGS.o, "models"),
+                                model_path=os.path.join(ARGS.i, "models"),
                                 configuration_dict=hyperparameters,  
                                 model=model, 
                                 loaders=(train_loader, val_loader, test_loader),
