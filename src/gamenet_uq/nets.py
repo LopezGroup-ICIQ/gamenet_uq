@@ -6,7 +6,7 @@ import torch
 from torch.nn import Linear, Softplus
 from torch import Tensor
 from torch.distributions import Normal
-from torch_geometric.nn.conv import SAGEConv, TAGConv
+from torch_geometric.nn.conv import SAGEConv, TAGConv, MessagePassing
 from torch_geometric.utils import to_dense_batch
 
 class MAB(torch.nn.Module):
@@ -93,20 +93,27 @@ class GameNetUQ(torch.nn.Module):
                  num_linear: int = 0,
                  num_conv: int = 3,
                  bias: bool = False,
-                 conv = SAGEConv, 
+                 conv: MessagePassing = SAGEConv, 
                  pool_heads: int = 1, 
-                 seed: int = None):
+                 seed: int = None, 
+                 clamp_std: float = 0.001,
+                 return_distribution: bool = True 
+                 ):
         """
 
         Args:
-            num_in_features (int, optional): Input graph node dimensionality. Default to NODE_FEATURES.
-            dim (int, optional): Layer width.
-            num_linear (int, optional): Number of dense. Default to 3.
-            num_conv (int, optional): Number of convolutional layers. Default to 3.
-            sigma (_type_, optional): Activation function. Default to torch.nn.ReLU().
-            bias (bool, optional): Bias inclusion. Default to True.
-            conv (_type_, optional): Convolutional Layer. Default to SAGEConv.
-            pool (_type_, optional): Pooling Layer. Default to GraphMultisetTransformer.
+            node_features (int): graph node dimensionality.
+            dim (int): Layer width.
+            num_linear (int): Number of dense layers after input layer. Default to 0.
+            num_conv (int): Number of convolutional layers. Default to 3.
+            bias (bool, optional): Bias inclusion. Default to False.
+            conv (): Convolutional Layer. Default to SAGEConv.
+            pool_heads (int): Number of attention heads in the pooling layer. Default to 1.
+            seed (int): seed for random number generation.
+            clamp_std (float): ceiling for predicted uncertainty. Only useful for stabilizing initial 
+                                epochs of training.
+            return_distribution (bool): If True, return output as torch.distributions.Normal(), else 
+                                        return tuple with (mean, std). Default to True.
         """
         if seed is not None and type(seed) == int:
             torch.manual_seed(seed)
@@ -123,6 +130,8 @@ class GameNetUQ(torch.nn.Module):
                        num_heads = pool_heads, 
                        num_seeds = 1, 
                        bias = bias)
+        self.clamp_std = clamp_std
+        self.return_distribution = return_distribution
         
     def forward(self, data):
         #---------------------------------#
@@ -146,8 +155,9 @@ class GameNetUQ(torch.nn.Module):
         mask = (~mask).unsqueeze(1).to(dtype=out.dtype) * -1e9
         out = self.pma(x=batch_x, mask=mask)
         out = self.lin_b(out.squeeze(1))
-        scale = torch.clamp(Softplus()(out[:, 1]), min=1e-3)  
-        return Normal(out[:, 0], scale)
+        mean = out[:, 0]
+        scale = torch.clamp(Softplus()(out[:, 1]), min=self.clamp_std)  if isinstance(self.clamp_std, float) else Softplus()(out[:, 1])
+        return Normal(mean, scale) if self.return_distribution else mean, scale
     
 
 class GameNetUQ_ablation(torch.nn.Module):
