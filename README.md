@@ -7,7 +7,7 @@
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./GNN_github.png" width="90%" height="90%" />
+     <img src="https://raw.githubusercontent.com/LopezGroup-ICIQ/gamenet_uq/main/GNN_github.png" width="90%" height="90%" />
     </p>
 </div>
 
