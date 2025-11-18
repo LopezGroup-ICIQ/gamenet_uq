@@ -317,13 +317,15 @@ def create_loaders_nested_cv(dataset: InMemoryDataset,
 
 def load_model_from_path(path: str) -> torch.nn.Module:
     """
-    Load GAME-Net-UQ model.
+    Load GAME-Net-UQ pretrained model. By default, the predicted
+    energy is returned as tuple (y, std) with y being the energy prediction and
+    std the measure of uncertainty.
     """
     from copy import deepcopy
     with open(path + "/input.txt", "r") as f:
         config_dict = eval(f.read())
     target_scaling_params = get_mean_std_from_model(path)
-    model = GameNetUQ(20, 192)
+    model = GameNetUQ(20, 192, return_distribution=False)
     model.load_state_dict(torch.load(path + "/GNN.pth", weights_only=True, map_location="cpu"))
     model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
     model.eval()
@@ -332,7 +334,9 @@ def load_model_from_path(path: str) -> torch.nn.Module:
 
 def load_model_from_url(version: str = "0.1.1") -> torch.nn.Module:
     """
-    Load GAME-Net-UQ pretrained model.
+    Load GAME-Net-UQ pretrained model. By default, the predicted
+    energy is returned as tuple (y, std) with y being the energy prediction and
+    std the measure of uncertainty.
     """
     from copy import deepcopy
     WEIGHTS_URL = f"https://github.com/LopezGroup-ICIQ/gamenet_uq/releases/download/v{version}/GNN.pth"
@@ -342,7 +346,7 @@ def load_model_from_url(version: str = "0.1.1") -> torch.nn.Module:
         content = f.read().decode('utf-8')
         config = ast.literal_eval(content)
     target_scaling_params = get_mean_std_from_model(PERFORMANCE_URL)
-    model = GameNetUQ(20, 192)
+    model = GameNetUQ(20, 192, return_distribution=False)
     state_dict = torch.hub.load_state_dict_from_url(WEIGHTS_URL, map_location="cpu")
     model.load_state_dict(state_dict)
     model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
