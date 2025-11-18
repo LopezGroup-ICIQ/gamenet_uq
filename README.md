@@ -1,6 +1,7 @@
 [![DOI](https://img.shields.io/badge/DOI-10.26434%2Fchemrxiv--2024--bfv3d-blue)](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Python package](https://github.com/LopezGroup-ICIQ/gamenet_uq/actions/workflows/tests.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/gamenet_uq/actions/workflows/tests.yml)
+[![PyPI version](https://img.shields.io/pypi/v/gamenet-uq.svg)](https://pypi.org/project/gamenet-uq/)
 
 # GAME-Net-UQ
 
