@@ -81,6 +81,8 @@ class TestLoad(unittest.TestCase):
         self.assertIsInstance(f.y_scale_params["mean"], float)
         self.assertIsInstance(f.y_scale_params["std"], float)
         self.assertGreaterEqual(f.y_scale_params["std"], 0.0)
+        x = atoms_to_data(xx[1])
+        self.assertIsInstance(f(x), tuple)
 
     def test_load_from_url(self):
         f = load_model_from_url()
@@ -90,3 +92,5 @@ class TestLoad(unittest.TestCase):
         self.assertIsInstance(f.y_scale_params["mean"], float)
         self.assertIsInstance(f.y_scale_params["std"], float)
         self.assertGreaterEqual(f.y_scale_params["std"], 0.0)
+        x = atoms_to_data(xx[1])
+        self.assertIsInstance(f(x), tuple)
