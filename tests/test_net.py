@@ -43,11 +43,13 @@ class TestGraph(unittest.TestCase):
         for x in xx:
             g = atoms_to_data(x, surface_order=2)
             g_all = atoms_to_data(x, surface_order=-1)
+            g_surf_hops = atoms_to_data(x, surface_order=-1, add_surf_hops_info=True)
             self.assertIsInstance(g, Data)
             self.assertTrue("formula" in g.keys())
             self.assertTrue("elem" in g.keys())
             self.assertTrue("ase_indices" in g.keys())
             self.assertTrue("type" in g.keys())
+            self.assertTrue("surf_hops" not in g.keys())
             self.assertTrue(len(g.ase_indices) == g.num_nodes)
             self.assertEqual(g.x.shape[1], 20)
             self.assertEqual(g_all.x.shape[1], 20)
@@ -55,6 +57,10 @@ class TestGraph(unittest.TestCase):
             self.assertTrue(g_all.x.shape[0] == len(x))
             self.assertEqual(g.edge_attr.shape[1], 1)
             self.assertEqual(g_all.edge_attr.shape[1], 1)
+            self.assertTrue("surf_hops" in g_surf_hops.keys())
+            self.assertIsInstance(g_surf_hops.surf_hops, dict)
+            self.assertIsInstance(g_surf_hops.surf_hops[0], list)
+            self.assertIsInstance(g_surf_hops.surf_hops[1], list)
 
 class TestNet(unittest.TestCase):
     def test_net(self):
