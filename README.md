@@ -10,11 +10,15 @@
     </p>
 </div>
 
-This repository contains the Python code used to train and evaluate GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) for predicting the DFT energy of relaxed species and transition states adsorbed on monometallic transition metal surfaces. 
+This repository contains the Python code used to train and evaluate GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) for predicting the DFT energy of relaxed species and transition states adsorbed on metal surfaces. 
 
-## Conda environment
+## Install
 
-We will soon provide a .yml file from which generate the conda environment needed for the code. Main dependencies are: Python 3.11, Pytorch, Pytorch Geometric, ASE.
+```bash
+pip install gamenet-uq
+```
+
+The main dependencies of the repo can be found in [pyproject.toml](./pyproject.toml)
 
 ## DFT dataset
 
@@ -34,7 +38,7 @@ python train_mve.py -i input.toml -o output_dirname
 
 ## Pretrained model
 
-The final pretrained model is available within CARE ([link](https://github.com/LopezGroup-ICIQ/care)). 
+The final pretrained model can be employed with CARE ([link](https://github.com/LopezGroup-ICIQ/care)). 
 
 ## License
 
