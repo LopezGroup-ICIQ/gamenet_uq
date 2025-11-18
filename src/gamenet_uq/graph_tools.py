@@ -46,8 +46,8 @@ def convert_pyg_to_nx(graph: Data) -> Graph:
     return nx_graph
 
 
-def convert_networkx_to_gpytorch(graph_nx: Graph, 
-                                 one_hot_encoder_elements: OneHotEncoder) -> Data:
+def convert_nx_to_pyg(graph: Graph, 
+                      one_hot_encoder_elements: OneHotEncoder) -> Data:
     """
     Convert graph object from networkx to pytorch_geometric type.
     Args:
@@ -55,16 +55,16 @@ def convert_networkx_to_gpytorch(graph_nx: Graph,
     Returns:
         new_g(torch_geometric.data.Data): torch_geometric graph object        
     """
-    n_nodes = graph_nx.number_of_nodes()
-    n_edges = graph_nx.number_of_edges()
+    n_nodes = graph.number_of_nodes()
+    n_edges = graph.number_of_edges()
     node_features = torch.zeros((n_nodes, len(one_hot_encoder_elements)))
     edge_features = torch.zeros((n_edges, 1))
     edge_index = torch.zeros((2, n_edges), dtype=torch.long)
     node_index = torch.zeros((n_nodes), dtype=torch.long)
-    for i, node in enumerate(graph_nx.nodes):
+    for i, node in enumerate(graph.nodes):
         node_index[i] = node
-        node_features[i, one_hot_encoder_elements[graph_nx.nodes[node]['atom']]] = 1
-    for i, edge in enumerate(graph_nx.edges):
+        node_features[i, one_hot_encoder_elements[graph.nodes[node]['elem']]] = 1
+    for i, edge in enumerate(graph.edges):
         edge_index[0, i] = edge[0]
         edge_index[1, i] = edge[1]
     graph_pyg = Data(x=node_features, edge_index=edge_index, edge_attr=edge_features, y=node_index)
@@ -81,7 +81,8 @@ def graph_plotter(graph: Data,
                   dpi: int=200,
                   figsize: tuple[int, int]=(4,4), 
                   node_index: bool=True, 
-                  text: str=None):
+                  text: str=None, 
+                  title: bool = False):
     """
     Visualize graph with atom labels and colors. 
     Kamada_kawai_layout engine gives the best visualization appearance.
@@ -113,14 +114,13 @@ def graph_plotter(graph: Data,
             plt.text(x+0.05, y+0.05, node, fontsize=7)        
     if text != None:
         plt.text(0.03, 0.9, text, fontsize=10)
-    # Add info about metal surface
-    adsorbate = graph.formula[4:]
-    facet = graph.facet
-    facet = facet[facet.find("(")+1:facet.find(")")]
-    metal = graph.metal + f'({facet})'
-    title = f'{adsorbate}/{metal}'
-    plt.title(title, fontsize=10)
-    # Remove frame
+    if title:
+        adsorbate = graph.formula[4:]
+        facet = graph.facet
+        facet = facet[facet.find("(")+1:facet.find(")")]
+        metal = graph.metal + f'({facet})'
+        title = f'{adsorbate}/{metal}'
+        plt.title(title, fontsize=10)
     plt.axis('off')
     plt.draw()
 

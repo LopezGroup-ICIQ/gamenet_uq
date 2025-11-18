@@ -157,7 +157,9 @@ class GameNetUQ(torch.nn.Module):
         out = self.lin_b(out.squeeze(1))
         mean = out[:, 0]
         scale = torch.clamp(Softplus()(out[:, 1]), min=self.clamp_std)  if isinstance(self.clamp_std, float) else Softplus()(out[:, 1])
-        return Normal(mean, scale) if self.return_distribution else mean, scale
+        if self.return_distribution:
+            return Normal(mean, scale)
+        return mean, scale
     
 
 class GameNetUQ_ablation(torch.nn.Module):

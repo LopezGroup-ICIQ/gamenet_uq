@@ -9,6 +9,8 @@ import torch.nn.functional as F
 import torch
 from torch_geometric.data import InMemoryDataset
 
+from gamenet_uq.nets import GameNetUQ
+
 
 def split_percentage(splits: int, test: bool=True) -> tuple[int]:
     """Return split percentage of the train, validation and test sets.
@@ -196,9 +198,7 @@ def train_loop(model,
 def test_loop(model,
               loader: DataLoader,
               device: str,
-              std: float,
-              mean: float=None, 
-              scaled_graph_label: bool= True) -> float:
+              std: float) -> float:
     """
     Run test or validation iteration (epoch).
     For each batch in the validation/test set, the following steps are performed:
@@ -210,9 +210,6 @@ def test_loop(model,
         loader (Dataloader object): Dataset for validation/testing.
         device (str): device on which training is performed.
         std (float): standard deviation of the training+validation datasets [eV]
-        mean (float): mean of the training+validation datasets [eV]
-        scaled_graph_label (bool): whether the graph labels are in eV or in a scaled format.
-        verbose (int): 0=no printing info 1=printing information
     Returns:
         error(float): Mean Absolute Error (MAE) of the test loader.
     """
@@ -309,3 +306,18 @@ def create_loaders_nested_cv(dataset: InMemoryDataset,
             flatten_training = [item for sublist in proxy2 for item in sublist]  # flatten list of lists
             train_loader = DataLoader(flatten_training, batch_size=batch_size, shuffle=True)
             yield deepcopy((train_loader, val_loader, test_loader))
+
+def load_model(path: str) -> torch.nn.Module:
+    """
+    Load GAME-Net-UQ model.
+    """
+    from copy import deepcopy
+    with open(path + "/input.txt", "r") as f:
+        config_dict = eval(f.read())
+    target_scaling_params = get_mean_std_from_model(path)
+    model = GameNetUQ(20, 192)
+    model.load_state_dict(torch.load(path + "/GNN.pth", weights_only=True, map_location="cpu"))
+    model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
+    model.eval()
+    model.graph_params = deepcopy(config_dict["graph"])
+    return model

@@ -25,28 +25,12 @@ CORDERO = {'Ac': 2.15, 'Al': 1.21, 'Am': 1.80, 'Sb': 1.39, 'Ar': 1.06,
            'Na': 1.66, 'Sr': 1.95, 'S' : 1.05, 'Ta': 1.70, 'Tc': 1.47,
            'Te': 1.38, 'Tb': 1.94, 'Tl': 1.45, 'Th': 2.06, 'Tm': 1.90,
            'Sn': 1.39, 'Ti': 1.60, 'W': 1.62, 'U' : 1.96, 'V' : 1.53,
-           'Xe': 1.40, 'Yb': 1.87, 'Y' : 1.90, 'Zn': 1.22, 'Zr': 1.75}  # Atomic radii from Cordero et al. 
-
-# Name of chemical families included in the dataset
-FG_RAW_GROUPS = ["amides", "amidines", "group2", "group2b",
-                 "group3S", "group3N", "group4", "carbamate_esters",
-                 "oximes", "aromatics", "aromatics2",
-                 "gas_amides", "gas_amidines", "gas_aromatics",
-                 "gas_aromatics2", "gas_carbamate_esters", "gas_group2",
-                 "gas_group2b", "gas_group3N", "gas_group3S",
-                 "gas_group4", "gas_oximes"]  # Raw Datasets names defined during DFT data generation
-FG_FAMILIES = ["Amides", "Amidines", "$C_{x}H_{y}O_{(0,1)}$", "$C_{x}H_{y}O_{(0,1)}$",
-               "$C_{x}H_{y}S$", "$C_{x}H_{y}N$", "$C_{x}H_{y}O_{(2,3)}$", "Carbamates",
-               "Oximes", "Aromatics", "Aromatics", 
-               "Amides", "Amidines", "Aromatics", 
-               "Aromatics", "Carbamates", "$C_{x}H_{y}O_{(0,1)}$", 
-               "$C_{x}H_{y}O_{(0,1)}$", "$C_{x}H_{y}N$", "$C_{x}H_{y}S$", 
-               "$C_{x}H_{y}O_{(2,3)}$", "Oximes"]  # Proper chemical family name used in manuscipts
-FAMILY_DICT = dict(zip(FG_RAW_GROUPS, FG_FAMILIES))  
+           'Xe': 1.40, 'Yb': 1.87, 'Y' : 1.90, 'Zn': 1.22, 'Zr': 1.75}  # Atomic radii from Cordero et al.  
 
 METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
 ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
 OHE_ELEMENTS = OneHotEncoder().fit(np.array(ADSORBATE_ELEMS + METALS).reshape(-1, 1))
+ELEMENT_DOMAIN = list(OHE_ELEMENTS.categories_[0])
 
 # Dictionaries for model training features
 loss_dict = {"mse": mse_loss,

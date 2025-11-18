@@ -341,7 +341,12 @@ def atoms_to_data(structure: Union[Atoms, str],
     if graph_features_params["valence"]:
         graph = get_atom_valence(graph, adsorbate_elements)
     if graph_features_params["gcn"]:
-        graph = get_gcn(graph, structure, adsorbate_elements, surf_atoms)
+        gcn = get_gcn(structure, adsorbate_elements)
+        gcn_col = torch.zeros((graph.x.shape[0], 1))
+        for i, _ in enumerate(graph.x):
+            gcn_col[i] = gcn[graph.ase_indices[i]][0]
+        graph.x = torch.cat((graph.x, gcn_col), dim=1)
+        graph.node_feats.append("gcn")
     if graph_features_params["magnetization"]:
         graph = get_magnetization(graph)
 
