@@ -1,8 +1,11 @@
 """This module contains functions used for the whole workflow of the project, from
 data preparation to model training and evaluation."""
 
+import ast
 import math
 from copy import copy, deepcopy
+import json
+from urllib.request import urlopen
 
 from torch_geometric.loader import DataLoader
 import torch.nn.functional as F
@@ -232,8 +235,13 @@ def get_mean_std_from_model(path:str) -> tuple[float]:
     Returns:
         mean, std (tuple[float]): mean and standard deviation for scaling the targets.
     """
-    file = open("{}/performance.txt".format(path), "r")
-    lines = file.readlines()
+    if "https://" in path:
+        with urlopen(path) as f:
+            file = f.read().decode('utf-8')
+            lines = file.split("\n")
+    else:
+        file = open("{}/performance.txt".format(path), "r")
+        lines = file.readlines()
     for line in lines:
         if "(train+val) mean" in line:
             mean = float(line.split()[-2])
@@ -307,7 +315,7 @@ def create_loaders_nested_cv(dataset: InMemoryDataset,
             train_loader = DataLoader(flatten_training, batch_size=batch_size, shuffle=True)
             yield deepcopy((train_loader, val_loader, test_loader))
 
-def load_model(path: str) -> torch.nn.Module:
+def load_model_from_path(path: str) -> torch.nn.Module:
     """
     Load GAME-Net-UQ model.
     """
@@ -320,4 +328,24 @@ def load_model(path: str) -> torch.nn.Module:
     model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
     model.eval()
     model.graph_params = deepcopy(config_dict["graph"])
+    return model
+
+def load_model_from_url(version: str = "0.1.1") -> torch.nn.Module:
+    """
+    Load GAME-Net-UQ pretrained model.
+    """
+    from copy import deepcopy
+    WEIGHTS_URL = f"https://github.com/LopezGroup-ICIQ/gamenet_uq/releases/download/v{version}/GNN.pth"
+    METADATA_URL = f"https://github.com/LopezGroup-ICIQ/gamenet_uq/releases/download/v{version}/input.txt"
+    PERFORMANCE_URL = f"https://github.com/LopezGroup-ICIQ/gamenet_uq/releases/download/v{version}/performance.txt"
+    with urlopen(METADATA_URL) as f:
+        content = f.read().decode('utf-8')
+        config = ast.literal_eval(content)
+    target_scaling_params = get_mean_std_from_model(PERFORMANCE_URL)
+    model = GameNetUQ(20, 192)
+    state_dict = torch.hub.load_state_dict_from_url(WEIGHTS_URL, map_location="cpu")
+    model.load_state_dict(state_dict)
+    model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
+    model.eval()
+    model.graph_params = deepcopy(config["graph"])
     return model

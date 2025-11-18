@@ -6,7 +6,7 @@ from torch_geometric.data import Data
 
 from tests import xx, model_test_path
 from gamenet_uq.graph import atoms_to_data, get_voronoi_neighbourlist
-from gamenet_uq.functions import load_model
+from gamenet_uq.functions import load_model_from_path, load_model_from_url
 from gamenet_uq.node_featurizers import get_gcn
 from gamenet_uq.nets import GameNetUQ
 from gamenet_uq.constants import ADSORBATE_ELEMS
@@ -67,8 +67,17 @@ class TestNet(unittest.TestCase):
         self.assertTrue(y[1] >= 0.0)
 
 class TestLoad(unittest.TestCase):
-    def test_load(self):
-        f = load_model(model_test_path)
+    def test_load_from_path(self):
+        f = load_model_from_path(model_test_path)
+        self.assertIsInstance(f, GameNetUQ)
+        self.assertTrue("mean" in f.y_scale_params.keys())
+        self.assertTrue("std" in f.y_scale_params.keys())
+        self.assertIsInstance(f.y_scale_params["mean"], float)
+        self.assertIsInstance(f.y_scale_params["std"], float)
+        self.assertGreaterEqual(f.y_scale_params["std"], 0.0)
+
+    def test_load_from_url(self):
+        f = load_model_from_url()
         self.assertIsInstance(f, GameNetUQ)
         self.assertTrue("mean" in f.y_scale_params.keys())
         self.assertTrue("std" in f.y_scale_params.keys())
