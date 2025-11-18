@@ -129,7 +129,9 @@ def atoms_to_nx(
         mode (str): whether the graph is created for the TS or the reactant/product. Default to 'ts'.
                     In case of 'ts', the graph will include an edge feature representing the broken bond.
     Returns:
-        Graph: NetworkX graph representing the adsorbate-metal system.
+        graph (networkx.Graph): NetworkX graph representing the adsorbate-metal system.
+        surf_hops (dict): Dictionary k:v with v being the list of ASE atom indices belonging to order k
+                          (k=0 are the adsorbate atoms indices).
     """
     neighbour_list = get_voronoi_neighbourlist(atoms, voronoi_tolerance, scaling_factor, adsorbate_elements)
     adsorption_ensemble = {atom.index for atom in atoms if atom.symbol in adsorbate_elements}
@@ -180,7 +182,7 @@ def atoms_to_nx(
     if mode == "ts":
         broken_bond_idxs = detect_ts(atoms, adsorbate_elements, 0.25)
         graph.add_edge(broken_bond_idxs[0], broken_bond_idxs[1], ts_edge=1)
-    return graph
+    return graph, surf_hops
 
 
 def atoms_to_pyg(atoms: Atoms,
@@ -189,7 +191,8 @@ def atoms_to_pyg(atoms: Atoms,
                 scaling_factor: float,
                 surface_order: int,
                 one_hot_encoder: OneHotEncoder = OHE_ELEMENTS, 
-                adsorbate_elems: list[str] = ADSORBATE_ELEMS) -> Data:
+                adsorbate_elems: list[str] = ADSORBATE_ELEMS, 
+                add_surf_hops_info: bool = False) -> Data:
     """
     Convert ASE Atoms object to PyG Data object, representing the adsorbate-surface system.   
 
@@ -201,6 +204,9 @@ def atoms_to_pyg(atoms: Atoms,
         scaling_factor (float): Scaling factor applied to metal radius of metals.
         one_hot_encoder (OneHotEncoder): One-hot encoder.
         adsorbate_elems (list[str]): list of elements present in the adsorbate.
+        add_surf_hops_info (bool): If True, an additional dictionary {k:int: v:list[int]} with v being the 
+            list of atoms indices beloning to order k (k=0 is the adsorbate itself) will be added as graph
+            metadata. Default to False.
     Returns:
         graph (torch_geometric.data.Data): graph representation of the transition state.
 
@@ -212,7 +218,7 @@ def atoms_to_pyg(atoms: Atoms,
     """
     if calc_type not in ["int", "ts"]:
         raise ValueError("calc_type must be either 'int' or 'ts'.")
-    nx = atoms_to_nx(atoms, voronoi_tol, scaling_factor, surface_order, adsorbate_elems, calc_type)
+    nx, surf_hops = atoms_to_nx(atoms, voronoi_tol, scaling_factor, surface_order, adsorbate_elems, calc_type)
     elem_list = list(get_node_attributes(nx, "elem").values())
     elem_array = np.array(elem_list).reshape(-1, 1)
     elem_enc = one_hot_encoder.transform(elem_array).toarray()
@@ -239,13 +245,16 @@ def atoms_to_pyg(atoms: Atoms,
              type=calc_type, 
              node_feats=ELEMENT_DOMAIN, 
              formula = atoms.get_chemical_formula())
+    if add_surf_hops_info:
+        g.surf_hops = surf_hops
     return g
 
 
 def atoms_to_data(
     structure: Atoms, 
     surface_order: int = 2,
-    filter: bool = True
+    filter: bool = True, 
+    add_surf_hops_info: bool = False
 ) -> Data:
     """
     Convert stable structures to PyG Data graph based on the input parameters.
@@ -257,6 +266,10 @@ def atoms_to_data(
         structure (Atoms): ASE atoms object.
         surface_order (int): order of the surface neighbours to be included in the graph. If set to -1,
                             all surface slab is included.
+        filter (bool): If False, generated graph does not pass through set of filters. Defaulto to True.
+        add_surf_hops_info (bool): If True, an additional dictionary {k:int: v:list[int]} with v being the 
+            list of atoms indices beloning to order k (k=0 is the adsorbate itself) will be added as graph
+            metadata. Default to False.
     Returns:
         graph (Data): PyG Data object.
     """
@@ -271,7 +284,8 @@ def atoms_to_data(
         "int",
         0.25,
         1.25,
-        surface_order
+        surface_order, 
+        add_surf_hops_info=add_surf_hops_info
     )
 
     # GRAPH FILTERING
