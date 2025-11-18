@@ -26,15 +26,12 @@ def convert_pyg_to_nx(graph: Data) -> Graph:
     atom_list = [graph.elem[i] for i in range(n_nodes)]
     edge_ts_list = {}
     for i in range(graph.num_edges):
+        node_idxs = graph.edge_index[:, i]
+        node1 = node_idxs[0].item()
+        node2 = node_idxs[1].item()
         if graph.edge_attr[i, 0] == 1:
-            node_idxs = graph.edge_index[:, i]
-            node1 = node_idxs[0].item()
-            node2 = node_idxs[1].item()
             edge_ts_list[(node1, node2)] = 1
         else:
-            node_idxs = graph.edge_index[:, i]
-            node1 = node_idxs[0].item()
-            node2 = node_idxs[1].item()
             edge_ts_list[(node1, node2)] = 0
     g = torch_geometric.utils.to_networkx(graph, to_undirected=True)
     connections = list(g.edges)
