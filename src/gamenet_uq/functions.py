@@ -89,7 +89,7 @@ def scale_target(train_loader: DataLoader,
                  test_loader: DataLoader=None,
                  mode: str='std',
                  verbose: bool=True,
-                 test: bool=True):
+                 test: bool=True) -> tuple[DataLoader, float, float]:
     """
     Apply target scaling to the whole dataset using training and validation sets.
     Args:
@@ -165,7 +165,7 @@ def train_loop(model,
                device:str,
                train_loader: DataLoader,
                optimizer,
-               loss_fn):
+               loss_fn) -> tuple[float]:
     """
     Run training iteration (epoch) 
     For each batch in the epoch, the following actions are performed:
@@ -272,7 +272,7 @@ def get_graph_conversion_params(path: str) -> tuple:
     return voronoi_tol, scaling_factor, second_order_nn
 
 
-def split_list(a: list, n: int):
+def split_list(a: list, n: int) -> list:
     """
     Split a list into n chunks (for nested cross-validation)
     Args:
