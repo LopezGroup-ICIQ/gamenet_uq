@@ -2,6 +2,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Python package](https://github.com/LopezGroup-ICIQ/gamenet_uq/actions/workflows/tests.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/gamenet_uq/actions/workflows/tests.yml)
 [![PyPI version](https://img.shields.io/pypi/v/gamenet-uq.svg)](https://pypi.org/project/gamenet-uq/)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/gamenet-uq?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/gamenet-uq)
+[![codecov](https://codecov.io/gh/LopezGroup-ICIQ/gamenet_uq/graph/badge.svg?token=W1GBOYU6Q0)](https://codecov.io/gh/LopezGroup-ICIQ/gamenet_uq)
 
 # GAME-Net-UQ
 

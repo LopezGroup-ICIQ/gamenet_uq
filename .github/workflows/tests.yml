@@ -30,5 +30,9 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate gnn
-        pip install pytest
-        pytest
+        pip install pytest pytest-cov
+        pytest --cov --cov-branch --cov-report=xml
+    - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
